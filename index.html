@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PokerMon</title>
+  <!-- Font Awesome for glowing outline icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Font for futuristic vibe -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet">
+  <style>
+    /* Global Styles */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Orbitron', sans-serif;
+      background: #1e1e2f;
+      color: #e0e0e0;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+    .container {
+      max-width: 1400px;
+      margin: auto;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+      color: #f5f5f5;
+    }
+    #pot {
+      font-size: 22px;
+      margin-bottom: 15px;
+      text-align: center;
+      color: #f5f5f5;
+    }
+    /* Game Log */
+    #game-log {
+      max-height: 120px;
+      overflow-y: auto;
+      border: 1px solid rgba(255,255,255,0.3);
+      margin-bottom: 15px;
+      padding: 5px;
+      font-size: 14px;
+    }
+    /* Board styling */
+    .board {
+      width: 100%;
+      padding: 20px;
+      border-radius: 15px;
+      background: rgba(30,30,40,0.5);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+      margin-bottom: 20px;
+      transition: background 0.5s ease;
+    }
+    /* Players */
+    .players {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .player {
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 15px;
+      padding: 10px;
+      width: 260px;
+      margin: 10px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(5px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    }
+    .player h2 {
+      margin-bottom: 5px;
+      color: #f5f5f5;
+      font-size: 20px;
+    }
+    .player-stack {
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #FFD700;
+      text-align: center;
+    }
+    /* Cards container */
+    .cards {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    /* Card Styles (moderate size so they fit side by side) */
+    .card {
+      width: 100px;
+      height: 140px;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 10px;
+      margin: 6px;
+      padding: 5px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+      transition: transform 0.2s, opacity 0.5s;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-around;
+      opacity: 0;
+      animation: fadeIn 0.5s forwards;
+    }
+    .card:hover { transform: translateY(-5px); }
+    .card .card-type {
+      font-size: 16px;
+      margin-bottom: 2px;
+      white-space: nowrap;
+    }
+    .card .card-name {
+      font-size: 14px;
+      margin-bottom: 2px;
+      white-space: normal;
+      word-break: break-word;
+      text-align: center;
+    }
+    .card .card-value {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+    .card .bonus-indicator {
+      font-size: 12px;
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .bonus-positive {
+      color: #00ff00;
+      text-shadow: 0 0 10px #00ff00;
+    }
+    .bonus-negative {
+      color: #ff0000;
+      text-shadow: 0 0 10px #ff0000;
+    }
+    /* Card back for AI */
+    .card-back {
+      background: linear-gradient(135deg, #aaa, #777);
+      border: none;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: #ccc;
+      opacity: 1;
+      animation: fadeIn 0.5s forwards;
+    }
+    /* Element-specific card styles */
+    .fire-card {
+      border-color: #FF8C00;
+      background: rgba(255,140,0,0.15);
+      box-shadow: 0 4px 10px rgba(255,140,0,0.5);
+    }
+    .water-card {
+      border-color: #1E90FF;
+      background: rgba(30,144,255,0.15);
+      box-shadow: 0 4px 10px rgba(30,144,255,0.5);
+    }
+    .earth-card {
+      border-color: #9ACD32;
+      background: rgba(154,205,50,0.15);
+      box-shadow: 0 4px 10px rgba(154,205,50,0.5);
+    }
+    .air-card {
+      border-color: #ADD8E6;
+      background: rgba(173,216,230,0.15);
+      box-shadow: 0 4px 10px rgba(173,216,230,0.5);
+    }
+    .electric-card {
+      border-color: #FFD700;
+      background: rgba(255,215,0,0.15);
+      box-shadow: 0 4px 10px rgba(255,215,0,0.5);
+    }
+    .fa-icon {
+      font-size: 18px;
+      margin-right: 4px;
+      text-shadow: 0 0 5px currentColor;
+    }
+    /* Power Cards Container */
+    #power-cards-container {
+      margin-top: 20px;
+      padding: 10px;
+      border: 4px dashed transparent;
+      border-radius: 10px;
+      /* Background set in revealArena() */
+    }
+    .arena-label {
+      font-size: 26px;
+      font-weight: bold;
+      text-shadow: 0 0 8px;
+      margin-bottom: 10px;
+      opacity: 0;
+      animation: slideDown 0.8s forwards;
+    }
+    /* Betting Controls */
+    .betting-controls {
+      margin: 20px;
+      padding: 10px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 10px;
+      display: inline-block;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(5px);
+      opacity: 0;
+      animation: fadeIn 0.5s forwards;
+    }
+    .betting-controls button, .betting-controls input {
+      margin: 5px;
+    }
+    .betting-controls input[type="number"] {
+      width: 80px;
+      padding: 5px;
+      font-size: 14px;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 4px;
+      text-align: center;
+      background: rgba(255,255,255,0.1);
+      color: #f5f5f5;
+    }
+    .button {
+      background: #3a3aff;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+      color: #fff;
+      box-shadow: 0 4px 10px rgba(58,58,255,0.6);
+      transition: background 0.3s, transform 0.3s;
+    }
+    .button:hover { background: #1e1eff; transform: scale(1.05); }
+    #message {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #f5f5f5;
+      text-align: center;
+    }
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes gradientAnimation {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PokerMon</h1>
+    <div id="pot">Pot: $0</div>
+    <div id="game-log"></div>
+    <div class="board" id="game-board">
+      <div class="players">
+        <div class="player" id="player-human">
+          <h2>You</h2>
+          <div class="player-stack" id="human-stack">Stack: $1000</div>
+          <div class="cards" id="human-cards"></div>
+          <div id="human-total"></div>
+        </div>
+        <div class="player" id="player-ai1">
+          <h2>AI 1</h2>
+          <div class="player-stack" id="ai1-stack">Stack: $1000</div>
+          <div class="cards" id="ai1-cards"></div>
+          <div id="ai1-total"></div>
+        </div>
+        <div class="player" id="player-ai2">
+          <h2>AI 2</h2>
+          <div class="player-stack" id="ai2-stack">Stack: $1000</div>
+          <div class="cards" id="ai2-cards"></div>
+          <div id="ai2-total"></div>
+        </div>
+        <div class="player" id="player-ai3">
+          <h2>AI 3</h2>
+          <div class="player-stack" id="ai3-stack">Stack: $1000</div>
+          <div class="cards" id="ai3-cards"></div>
+          <div id="ai3-total"></div>
+        </div>
+      </div>
+      <!-- Power Cards Container -->
+      <div id="power-cards-container">
+        <div class="arena-label" id="arena-label"></div>
+        <div class="cards" id="power-cards"></div>
+      </div>
+      <!-- Betting Controls -->
+      <div class="betting-controls" id="betting-controls" style="display:none;">
+        <button class="button" id="check-button">Check</button>
+        <button class="button" id="call-button">Call</button>
+        <button class="button" id="bet-button">Bet</button>
+        <button class="button" id="fold-button">Fold</button>
+        <input type="number" id="bet-amount" placeholder="Bet Amount" min="1" style="display:none;" />
+        <button class="button" id="confirm-bet-button" style="display:none;">Confirm Bet</button>
+      </div>
+      <button class="button" id="start-button">Start Game</button>
+      <button class="button" id="restart-button" style="display:none;">Restart Fight</button>
+      <div id="message"></div>
+    </div>
+  </div>
+  <script>
+    /* Global Constants and Variables */
+    const elements = ["Fire", "Water", "Earth", "Air", "Electric"];
+    const startingStack = 1000;
+    const monsterNames = {
+      Fire: ["Fire Imp", "Ember Sprite", "Flame Whelp", "Blaze Pup", "Cinder Hound", "Lava Golem", "Burning Drake", "Flare Serpent", "Scorch Fiend", "Pyro Beast", "Ember Lord", "Inferno King", "Lava Titan"],
+      Water: ["Water Sprite", "Mist Nymph", "Ripple Imp", "Droplet Pixie", "Brook Guardian", "Aqua Sentinel", "Tidal Fighter", "Wave Ruler", "Deepwater Fiend", "Ocean Warrior", "Tsunami Bringer", "Abyss Monarch", "Ocean Emperor"],
+      Earth: ["Earth Pixie", "Soil Sprite", "Pebble Imp", "Mudling", "Rock Guard", "Stone Sentinel", "Terra Warrior", "Gravel Golem", "Earth Brute", "Landshaper", "Geo Lord", "Terra Titan", "Earth Emperor"],
+      Air: ["Air Imp", "Breeze Sprite", "Gustling", "Wind Wisp", "Zephyr Knight", "Air Scout", "Sky Warrior", "Cloud Strider", "Tempest Caller", "Wind Ruler", "Storm Bringer", "Sky Lord", "Storm King"],
+      Electric: ["Spark Imp", "Voltage Sprite", "Shockling", "Static Whelp", "Electric Hound", "Volt Golem", "Current Serpent", "Lightning Beast", "Thunder Fiend", "Storm Brute", "Electric Lord", "Volt Emperor", "Thunder Emperor"]
+    };
+    // BONUS MATRIX: Each cell is the bonus a card gets when played in an arena of the column's element.
+    const bonusMatrix = {
+      "Fire":     {"Fire": 0,  "Water": -4, "Earth": 2,  "Air": 4,  "Electric": -2},
+      "Water":    {"Fire": 4,  "Water": 0,  "Earth": -2, "Air": -4, "Electric": 2},
+      "Earth":    {"Fire": -2, "Water": 4,  "Earth": 0,  "Air": -4, "Electric": 2},
+      "Air":      {"Fire": -4, "Water": 2,  "Earth": 4,  "Air": 0,  "Electric": -2},
+      "Electric": {"Fire": 2,  "Water": -2, "Earth": -4, "Air": 4,  "Electric": 0}
+    };
+    const arenaModifiers = bonusMatrix; // Use matrix directly.
+    const elementGradients = {
+      Fire: 'linear-gradient(45deg, rgba(255,69,0,0.2), rgba(255,140,0,0.2), rgba(255,69,0,0.2))',
+      Water: 'linear-gradient(45deg, rgba(30,144,255,0.2), rgba(65,105,225,0.2), rgba(30,144,255,0.2))',
+      Earth: 'linear-gradient(45deg, rgba(154,205,50,0.2), rgba(107,142,35,0.2), rgba(154,205,50,0.2))',
+      Air: 'linear-gradient(45deg, rgba(173,216,230,0.2), rgba(135,206,250,0.2), rgba(173,216,230,0.2))',
+      Electric: 'linear-gradient(45deg, rgba(255,215,0,0.2), rgba(255,165,0,0.2), rgba(255,215,0,0.2))'
+    };
+    let deck = [];
+    let players = [];
+    let arenaCard = null;
+    let powerCards = [];
+    let currentStage = 0;  // 0: initial betting; 1: arena; 2: power rounds; 3: showdown
+    let powerRound = 0;
+    let pot = 0;
+    let currentBet = 0;
+    let userActionTaken = false;
+    
+    /* --- Helper Functions --- */
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+    function createDeck() {
+      let cards = [];
+      for (let element of elements) {
+        for (let i = 1; i <= 13; i++) {
+          cards.push({
+            type: "monster",
+            element: element,
+            value: i,
+            name: getMonsterName(element, i)
+          });
+        }
+      }
+      return cards;
+    }
+    function getIcon(element) {
+      if (element === "Fire") return '<i class="fas fa-fire fa-icon"></i>';
+      if (element === "Water") return '<i class="fas fa-tint fa-icon"></i>';
+      if (element === "Earth") return '<i class="fas fa-mountain fa-icon"></i>';
+      if (element === "Air") return '<i class="fas fa-wind fa-icon"></i>';
+      if (element === "Electric") return '<i class="fas fa-bolt fa-icon"></i>';
+      return '';
+    }
+    function getMonsterName(element, value) {
+      return monsterNames[element][value - 1] || (element + " " + value);
+    }
+    function getPowerName(element, value) {
+      if (element === "Fire") return value === 1 ? "Ember" : value === 5 ? "Inferno" : "Flame Burst";
+      if (element === "Water") return value === 1 ? "Splash" : value === 5 ? "Tsunami" : "Aqua Strike";
+      if (element === "Earth") return value === 1 ? "Pebble Toss" : value === 5 ? "Quake" : "Rock Smash";
+      if (element === "Air") return value === 1 ? "Gust" : value === 5 ? "Hurricane" : "Wind Slash";
+      if (element === "Electric") return value === 1 ? "Spark" : value === 5 ? "Thunder" : "Volt Surge";
+      return element + " Power";
+    }
+    function getArenaName(element) {
+      if (element === "Fire") return "Volcano Arena";
+      if (element === "Water") return "Oceanic Arena";
+      if (element === "Earth") return "Forest Arena";
+      if (element === "Air") return "Sky Arena";
+      if (element === "Electric") return "Lightning Arena";
+      return element + " Arena";
+    }
+    function getElementColor(element) {
+      if (element === "Fire") return "#FF4500";
+      if (element === "Water") return "#1E90FF";
+      if (element === "Earth") return "#CD853F";
+      if (element === "Air") return "#ADD8E6";
+      if (element === "Electric") return "#FFD700";
+      return "#fff";
+    }
+    function addLog(msg) {
+      const logDiv = document.getElementById("game-log");
+      const p = document.createElement("p");
+      p.textContent = msg;
+      logDiv.appendChild(p);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    function updateStacks() {
+      document.getElementById("human-stack").innerText = "Stack: $" + players[0].stack;
+      document.getElementById("ai1-stack").innerText = "Stack: $" + players[1].stack;
+      document.getElementById("ai2-stack").innerText = "Stack: $" + players[2].stack;
+      document.getElementById("ai3-stack").innerText = "Stack: $" + players[3].stack;
+    }
+    
+    /* --- Core Game Functions --- */
+    // Calculate card value: base + bonus from bonusMatrix + sum of matching Power Cards.
+    function calculateCardValue(card) {
+      let base = card.value;
+      if (arenaCard) {
+        let bonus = bonusMatrix[card.element][arenaCard.element];
+        let powerBonus = powerCards.filter(pc => pc.element === card.element).reduce((sum, pc) => sum + pc.power, 0);
+        return base + bonus + powerBonus;
+      }
+      return base;
+    }
+    function revealArena() {
+      let arenaElement = elements[Math.floor(Math.random() * elements.length)];
+      arenaCard = {
+        type: "arena",
+        element: arenaElement,
+        name: getArenaName(arenaElement),
+        modifiers: bonusMatrix
+      };
+      let color = getElementColor(arenaCard.element);
+      let arenaLabel = document.getElementById("arena-label");
+      arenaLabel.innerText = arenaCard.name + " (" + arenaCard.element + ")";
+      arenaLabel.style.color = color;
+      arenaLabel.style.animation = 'slideDown 0.8s forwards';
+      const container = document.getElementById("power-cards-container");
+      container.style.border = "4px dashed " + color;
+      container.style.background = elementGradients[arenaCard.element];
+      container.style.backgroundSize = "400% 400%";
+      container.style.animation = "gradientAnimation 15s ease infinite";
+      addLog("Arena revealed: " + arenaLabel.innerText);
+      renderHands();
+    }
+    function addPowerCard() {
+      let powerElement = elements[Math.floor(Math.random() * elements.length)];
+      let powerValue = Math.floor(Math.random() * 5) + 1;
+      let powerCard = {
+        type: "power",
+        element: powerElement,
+        power: powerValue,
+        name: getPowerName(powerElement, powerValue)
+      };
+      powerCards.push(powerCard);
+      addLog("Power Card dealt: " + powerCard.name + " (" + powerCard.element + " +" + powerCard.power + ")");
+      renderPowerCards();
+      renderHands();
+    }
+    function initGame() {
+      deck = shuffle(createDeck());
+      players = [
+        { name: "You", hand: [], isHuman: true, active: true, bet: 0, stack: startingStack },
+        { name: "AI 1", hand: [], isHuman: false, active: true, bet: 0, stack: startingStack },
+        { name: "AI 2", hand: [], isHuman: false, active: true, bet: 0, stack: startingStack },
+        { name: "AI 3", hand: [], isHuman: false, active: true, bet: 0, stack: startingStack }
+      ];
+      arenaCard = null;
+      powerCards = [];
+      currentStage = 0;
+      powerRound = 0;
+      pot = 0;
+      currentBet = 0;
+      updatePotDisplay();
+      updateStacks();
+      document.getElementById("human-total").innerText = "";
+      document.getElementById("ai1-total").innerText = "";
+      document.getElementById("ai2-total").innerText = "";
+      document.getElementById("ai3-total").innerText = "";
+      document.getElementById("arena-label").innerText = "";
+      document.getElementById("power-cards-container").style.border = "4px dashed transparent";
+      document.getElementById("power-cards").innerHTML = "";
+      document.getElementById("game-log").innerHTML = "";
+      addLog("Game started. Dealing Monster Cards...");
+      document.getElementById("start-button").style.display = "none";
+      document.getElementById("restart-button").style.display = "none";
+      document.getElementById("betting-controls").style.display = "none";
+      userActionTaken = false;
+      dealInitialCards();
+    }
+    // Start a new round without resetting stacks.
+    function resetRound() {
+      deck = shuffle(createDeck());
+      players.forEach(player => {
+        player.hand = [deck.pop(), deck.pop()];
+        player.active = true;
+        player.bet = 0;
+      });
+      currentBet = 0;
+      userActionTaken = false;
+      arenaCard = null;
+      powerCards = [];
+      currentStage = 0;
+      powerRound = 0;
+      pot = 0;
+      updatePotDisplay();
+      // Stacks remain unchanged.
+      document.getElementById("human-total").innerText = "";
+      document.getElementById("ai1-total").innerText = "";
+      document.getElementById("ai2-total").innerText = "";
+      document.getElementById("ai3-total").innerText = "";
+      document.getElementById("arena-label").innerText = "";
+      document.getElementById("power-cards-container").style.border = "4px dashed transparent";
+      document.getElementById("power-cards").innerHTML = "";
+      addLog("New round starting. Dealing Monster Cards...");
+      document.getElementById("betting-controls").style.display = "none";
+      beginBettingRound();
+    }
+    function dealInitialCards() {
+      players.forEach(player => {
+        player.hand = [deck.pop(), deck.pop()];
+        player.active = true;
+        player.bet = 0;
+      });
+      currentBet = 0;
+      userActionTaken = false;
+      renderHands();
+      beginBettingRound();
+    }
+    function renderHands() {
+      players.forEach((player, index) => {
+        let container = document.getElementById(index === 0 ? "human-cards" : "ai" + index + "-cards");
+        container.innerHTML = "";
+        if (player.isHuman) {
+          player.hand.forEach(card => {
+            let cardDiv = document.createElement("div");
+            cardDiv.className = "card monster " + card.element.toLowerCase() + "-card";
+            let bonus = calculateCardValue(card) - card.value;
+            let bonusClass = bonus >= 0 ? "bonus-positive" : "bonus-negative";
+            let iconHTML = getIcon(card.element);
+            cardDiv.innerHTML = `
+              <div class="card-type">${iconHTML} ${card.element}</div>
+              <div class="card-name">${card.name}</div>
+              <div class="card-value">${card.value}</div>
+              <div class="bonus-indicator ${bonusClass}">${bonus >= 0 ? "+" + bonus : bonus}</div>
+            `;
+            container.appendChild(cardDiv);
+          });
+          let total = player.hand.reduce((sum, card) => sum + calculateCardValue(card), 0);
+          document.getElementById("human-total").innerText = "Total: " + total;
+        } else {
+          if (player.active) {
+            player.hand.forEach(card => {
+              let cardDiv = document.createElement("div");
+              cardDiv.className = "card card-back";
+              cardDiv.innerHTML = '<i class="fas fa-ghost fa-icon"></i>';
+              container.appendChild(cardDiv);
+            });
+          } else {
+            container.innerHTML = "<div style='font-size:18px; color:#999;'>Folded</div>";
+          }
+        }
+      });
+    }
+    function renderPowerCards() {
+      let container = document.getElementById("power-cards");
+      container.innerHTML = "";
+      powerCards.forEach(pc => {
+        let cardDiv = document.createElement("div");
+        cardDiv.className = "card power " + pc.element.toLowerCase() + "-card";
+        let iconHTML = getIcon(pc.element);
+        cardDiv.innerHTML = `
+          <div class="card-type">${iconHTML} ${pc.element}</div>
+          <div class="card-name">${pc.name}</div>
+          <div class="card-value">+${pc.power}</div>
+        `;
+        container.appendChild(cardDiv);
+      });
+    }
+    function updatePotDisplay() {
+      document.getElementById("pot").innerText = "Pot: $" + pot;
+    }
+    function updateStacks() {
+      document.getElementById("human-stack").innerText = "Stack: $" + players[0].stack;
+      document.getElementById("ai1-stack").innerText = "Stack: $" + players[1].stack;
+      document.getElementById("ai2-stack").innerText = "Stack: $" + players[2].stack;
+      document.getElementById("ai3-stack").innerText = "Stack: $" + players[3].stack;
+    }
+    function beginBettingRound() {
+      players.forEach(player => { if(player.active) player.bet = 0; });
+      currentBet = 0;
+      userActionTaken = false;
+      document.getElementById("betting-controls").style.display = "inline-block";
+      // Disable check if a bet is active (should be 0 at round start)
+      document.getElementById("check-button").disabled = (currentBet > 0);
+      document.getElementById("check-button").style.display = "inline-block";
+      document.getElementById("call-button").style.display = "inline-block";
+      document.getElementById("bet-button").style.display = "inline-block";
+      document.getElementById("fold-button").style.display = "inline-block";
+      document.getElementById("bet-amount").style.display = "none";
+      document.getElementById("confirm-bet-button").style.display = "none";
+      document.getElementById("message").innerText = "Choose your action:";
+    }
+    function isBettingRoundComplete() {
+      return players.filter(p => p.active).every(p => p.bet === currentBet);
+    }
+    function processHumanAction(action, betAmt = 0) {
+      if (userActionTaken) return false;
+      let human = players[0];
+      if (action === "Check") {
+        if (currentBet === 0) {
+          addLog("You checked.");
+        } else {
+          alert("Cannot check when there's a bet. Choose Call or Bet.");
+          return false;
+        }
+      } else if (action === "Call") {
+        if (currentBet > human.bet) {
+          let callAmt = currentBet - human.bet;
+          if (callAmt > human.stack) { alert("Insufficient stack."); return false; }
+          human.bet = currentBet;
+          human.stack -= callAmt;
+          pot += callAmt;
+          addLog("You called (" + callAmt + ").");
+        } else {
+          alert("Nothing to call.");
+          return false;
+        }
+      } else if (action === "Bet") {
+        if (betAmt <= currentBet) {
+          alert("Your bet must exceed the current bet (" + currentBet + ").");
+          return false;
+        }
+        if (betAmt > human.stack) { alert("Insufficient stack."); return false; }
+        currentBet = betAmt;
+        human.bet = betAmt;
+        human.stack -= betAmt;
+        pot += betAmt;
+        addLog("You bet $" + betAmt + ".");
+      } else if (action === "Fold") {
+        human.active = false;
+        addLog("You folded.");
+        document.getElementById("message").innerText = "You folded. Restarting game...";
+        setTimeout(initGame, 2000);
+        return false;
+      }
+      updatePotDisplay();
+      updateStacks();
+      userActionTaken = true;
+      return true;
+    }
+    function processAIActions() {
+      for (let i = 1; i < players.length; i++) {
+        let ai = players[i];
+        if (!ai.active) continue;
+        let action;
+        if (currentBet === 0) {
+          // If no bet, AI never folds.
+          if (Math.random() < 0.3) {
+            let aiBet = Math.floor(Math.random() * 5) + 1;
+            if (aiBet > ai.stack) aiBet = ai.stack;
+            currentBet = aiBet;
+            ai.bet = aiBet;
+            ai.stack -= aiBet;
+            pot += aiBet;
+            action = "bets $" + aiBet;
+          } else {
+            action = "checks";
+          }
+        } else {
+          // Evaluate AI raw hand value (sum of base card values)
+          let aiHandValue = ai.hand.reduce((sum, card) => sum + card.value, 0);
+          if (aiHandValue < 15) {
+            ai.active = false;
+            action = "folds (undervalued)";
+          } else {
+            let callAmt = currentBet - ai.bet;
+            if (callAmt > ai.stack) { ai.active = false; action = "folds (insufficient stack)"; }
+            else {
+              ai.bet = currentBet;
+              ai.stack -= callAmt;
+              pot += callAmt;
+              action = "calls";
+            }
+          }
+        }
+        addLog("AI " + i + " " + action + ".");
+      }
+      updatePotDisplay();
+      updateStacks();
+      // Immediately disable check if a bet is active.
+      document.getElementById("check-button").disabled = (currentBet > 0);
+      renderHands();
+    }
+    function checkForWinner() {
+      let activePlayers = players.filter(p => p.active);
+      return activePlayers.length === 1 ? activePlayers[0] : null;
+    }
+    function advanceGame() {
+      document.getElementById("betting-controls").style.display = "none";
+      processAIActions();
+      if (!isBettingRoundComplete()) {
+        beginBettingRound();
+        return;
+      }
+      let sole = checkForWinner();
+      if (sole) {
+        showdown();
+        currentStage = 3;
+        // After showdown, wait 10 seconds to let player review, then reset round (stacks preserved)
+        setTimeout(resetRound, 10000);
+        return;
+      }
+      if (currentStage === 0) {
+        revealArena();
+        currentStage = 1;
+        userActionTaken = false;
+        beginBettingRound();
+      } else if (currentStage === 1) {
+        addPowerCard();
+        powerRound = 1;
+        currentStage = 2;
+        userActionTaken = false;
+        beginBettingRound();
+      } else if (currentStage === 2) {
+        if (powerRound < 3) {
+          addPowerCard();
+          powerRound++;
+          userActionTaken = false;
+          beginBettingRound();
+        } else {
+          showdown();
+          currentStage = 3;
+          setTimeout(resetRound, 10000);
+        }
+      }
+    }
+    function resetRound() {
+      // Reset round without resetting stacks
+      deck = shuffle(createDeck());
+      players.forEach(player => {
+        player.hand = [deck.pop(), deck.pop()];
+        player.active = true;
+        player.bet = 0;
+      });
+      currentBet = 0;
+      userActionTaken = false;
+      arenaCard = null;
+      powerCards = [];
+      currentStage = 0;
+      powerRound = 0;
+      pot = 0;
+      updatePotDisplay();
+      // Do not reset stacks.
+      document.getElementById("human-total").innerText = "";
+      document.getElementById("ai1-total").innerText = "";
+      document.getElementById("ai2-total").innerText = "";
+      document.getElementById("ai3-total").innerText = "";
+      document.getElementById("arena-label").innerText = "";
+      document.getElementById("power-cards-container").style.border = "4px dashed transparent";
+      document.getElementById("power-cards").innerHTML = "";
+      addLog("New round starting. Dealing Monster Cards...");
+      document.getElementById("betting-controls").style.display = "none";
+      beginBettingRound();
+    }
+    function showdown() {
+      let results = [];
+      players.forEach((player, index) => {
+        let handValue = player.hand.reduce((sum, card) => sum + calculateCardValue(card), 0);
+        if (!player.active) {
+          results.push({ name: player.name, value: -Infinity });
+        } else {
+          results.push({ name: player.name, value: handValue });
+        }
+        if (player.isHuman) {
+          document.getElementById("human-total").innerText = "Total: " + handValue;
+        } else {
+          document.getElementById("ai" + index + "-total").innerText = "Total: " + handValue;
+        }
+        if (!player.isHuman) {
+          let container = document.getElementById("ai" + index + "-cards");
+          container.innerHTML = "";
+          player.hand.forEach(card => {
+            let cardDiv = document.createElement("div");
+            cardDiv.className = "card monster " + card.element.toLowerCase() + "-card";
+            let iconHTML = getIcon(card.element);
+            cardDiv.innerHTML = `
+              <div class="card-type">${iconHTML} ${card.element}</div>
+              <div class="card-name">${card.name}</div>
+              <div class="card-value">${card.value}</div>
+              <div class="bonus-indicator ${(calculateCardValue(card) - card.value) >= 0 ? "bonus-positive" : "bonus-negative"}">
+                ${(calculateCardValue(card) - card.value) >= 0 ? "+" + (calculateCardValue(card) - card.value) : (calculateCardValue(card) - card.value)}
+              </div>
+            `;
+            container.appendChild(cardDiv);
+          });
+        }
+      });
+      results.sort((a, b) => b.value - a.value);
+      let winner = results[0];
+      let winnerScore = winner.value === -Infinity ? 0 : winner.value;
+      addLog("Showdown! Winner: " + winner.name + " with " + winnerScore + " points. Final Pot: $" + pot);
+      document.getElementById("message").innerText = "Showdown! Winner: " + winner.name + " with " + winnerScore + " points. Final Pot: $" + pot;
+    }
+    document.getElementById("check-button").addEventListener("click", () => {
+      if (userActionTaken) return;
+      if (currentBet === 0) {
+        if (processHumanAction("Check")) {
+          processAIActions();
+          if (isBettingRoundComplete()) advanceGame();
+          else beginBettingRound();
+        }
+      } else {
+        alert("Cannot check when there's a bet. Choose Call or Fold.");
+      }
+    });
+    document.getElementById("call-button").addEventListener("click", () => {
+      if (userActionTaken) return;
+      if (currentBet > players[0].bet) {
+        if (processHumanAction("Call")) {
+          processAIActions();
+          if (isBettingRoundComplete()) advanceGame();
+          else beginBettingRound();
+        }
+      } else {
+        alert("Nothing to call.");
+      }
+    });
+    document.getElementById("bet-button").addEventListener("click", () => {
+      if (userActionTaken) return;
+      document.getElementById("bet-amount").style.display = "inline-block";
+      document.getElementById("confirm-bet-button").style.display = "inline-block";
+      document.getElementById("check-button").style.display = "none";
+      document.getElementById("call-button").style.display = "none";
+      document.getElementById("bet-button").style.display = "none";
+      document.getElementById("fold-button").style.display = "none";
+      document.getElementById("message").innerText = "Enter your bet (must exceed current bet: " + currentBet + ")";
+    });
+    document.getElementById("confirm-bet-button").addEventListener("click", () => {
+      let betAmt = parseInt(document.getElementById("bet-amount").value);
+      if (!betAmt || betAmt <= currentBet) {
+        alert("Bet must exceed current bet (" + currentBet + ").");
+        return;
+      }
+      if (processHumanAction("Bet", betAmt)) {
+        document.getElementById("bet-amount").style.display = "none";
+        document.getElementById("confirm-bet-button").style.display = "none";
+        document.getElementById("check-button").style.display = "inline-block";
+        document.getElementById("call-button").style.display = "inline-block";
+        document.getElementById("bet-button").style.display = "inline-block";
+        document.getElementById("fold-button").style.display = "inline-block";
+        processAIActions();
+        if (isBettingRoundComplete()) advanceGame();
+        else beginBettingRound();
+      }
+    });
+    document.getElementById("fold-button").addEventListener("click", () => {
+      if (userActionTaken) return;
+      if (processHumanAction("Fold")) {
+        addLog("You folded.");
+        document.getElementById("message").innerText = "You folded. Restarting game...";
+        setTimeout(initGame, 2000);
+      }
+    });
+    document.getElementById("start-button").addEventListener("click", initGame);
+    document.getElementById("restart-button").addEventListener("click", initGame);
+  </script>
+</body>
+</html>
