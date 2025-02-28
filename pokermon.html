@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PokerMon</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Exo+2:wght@300;400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="pokermon.css">
+    <link rel="stylesheet" href="pokermon-fixes.css">
+  </head>
+  <body>
+    <div class="container">
+      <div class="game-title">
+        <h1>PokerMon</h1>
+      </div>
+      
+      <div class="game-info">
+        <div id="blinds-info">Blinds: $5/$10</div>
+        <div id="pot">Pot: $0</div>
+        <div class="game-stage">
+          <span class="stage-dot active" data-stage="preflop"></span>
+          <span class="stage-dot" data-stage="arena"></span>
+          <span class="stage-dot" data-stage="power1"></span>
+          <span class="stage-dot" data-stage="power2"></span>
+          <span class="stage-dot" data-stage="power3"></span>
+        </div>
+      </div>
+      
+      <div class="log-container">
+        <div class="log-header">
+          <div class="log-title">Game Log</div>
+          <div class="log-control" id="clear-log">Clear</div>
+        </div>
+        <div id="game-log"></div>
+      </div>
+      
+      <div class="poker-table-container">
+        <!-- Poker Table -->
+        <div class="poker-table">
+          <!-- Arena in the middle -->
+          <div id="power-cards-container">
+            <div class="arena-label" id="arena-label"></div>
+            <div class="board-cards" id="power-cards"></div>
+          </div>
+          
+          <!-- Blind markers -->
+          <div class="blind-marker dealer-button" id="dealer-button" style="display: none;">D</div>
+          <div class="blind-marker small-blind-button" id="small-blind-button" style="display: none;">SB</div>
+          <div class="blind-marker big-blind-button" id="big-blind-button" style="display: none;">BB</div>
+          
+          <!-- Players positioned around table -->
+          <div class="players-container">
+            <!-- Player at top -->
+            <div class="player" id="player-ai1">
+              <h2>AI 1 <span class="player-position">UTG</span></h2>
+              <div class="player-info">
+                <div class="player-stack" id="ai1-stack"><i class="fas fa-coins stack-icon"></i> $1000</div>
+                <div class="player-bet" id="ai1-bet-amount"></div>
+              </div>
+              <div class="cards" id="ai1-cards"></div>
+              <div id="ai1-total"></div>
+              <div class="player-action" id="ai1-action"></div>
+              <div class="chips-container" id="ai1-chips"></div>
+            </div>
+            
+            <!-- Player at right -->
+            <div class="player" id="player-ai2">
+              <h2>AI 2 <span class="player-position">MP</span></h2>
+              <div class="player-info">
+                <div class="player-stack" id="ai2-stack"><i class="fas fa-coins stack-icon"></i> $1000</div>
+                <div class="player-bet" id="ai2-bet-amount"></div>
+              </div>
+              <div class="cards" id="ai2-cards"></div>
+              <div id="ai2-total"></div>
+              <div class="player-action" id="ai2-action"></div>
+              <div class="chips-container" id="ai2-chips"></div>
+            </div>
+            
+            <!-- Player at bottom -->
+            <div class="player" id="player-ai3">
+              <h2>AI 3 <span class="player-position">CO</span></h2>
+              <div class="player-info">
+                <div class="player-stack" id="ai3-stack"><i class="fas fa-coins stack-icon"></i> $1000</div>
+                <div class="player-bet" id="ai3-bet-amount"></div>
+              </div>
+              <div class="cards" id="ai3-cards"></div>
+              <div id="ai3-total"></div>
+              <div class="player-action" id="ai3-action"></div>
+              <div class="chips-container" id="ai3-chips"></div>
+            </div>
+            
+            <!-- Player at left (human) -->
+            <div class="player" id="player-human">
+              <h2>You <span class="player-position">BTN</span></h2>
+              <div class="player-info">
+                <div class="player-stack" id="human-stack"><i class="fas fa-coins stack-icon"></i> $1000</div>
+                <div class="player-bet" id="human-bet-amount"></div>
+              </div>
+              <div class="cards" id="human-cards"></div>
+              <div id="human-total"></div>
+              <div class="player-action" id="human-action"></div>
+              <div class="chips-container" id="human-chips"></div>
+            </div>
+          </div>
+          
+          <!-- Winner overlay -->
+          <div class="winner-overlay" id="winner-overlay">
+            <div class="winner-title" id="winner-title">Player Wins!</div>
+            <div class="winner-info" id="winner-info">with Monster Total: 25</div>
+            <div class="winner-cards" id="winner-cards"></div>
+            <div class="winner-pot" id="winner-pot">Pot: $250</div>
+            <button class="button restart-btn" id="continue-button">Continue</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Betting Controls -->
+      <div class="controls-container">
+        <div class="betting-controls" id="betting-controls">
+          <button class="button check-btn" id="check-button"><i class="fas fa-hand"></i> Check</button>
+          <button class="button call-btn" id="call-button"><i class="fas fa-phone"></i> Call</button>
+          <button class="button bet-btn" id="bet-button"><i class="fas fa-coins"></i> Bet</button>
+          <button class="button raise-btn" id="raise-button"><i class="fas fa-arrow-up"></i> Raise</button>
+          <button class="button fold-btn" id="fold-button"><i class="fas fa-times"></i> Fold</button>
+          <button class="button all-in-btn" id="all-in-button"><i class="fas fa-exclamation-circle"></i> All-In</button>
+          
+          <div class="bet-slider-container" id="bet-slider-container">
+            <div class="bet-slider-control">
+              <input type="range" min="0" max="1000" value="20" class="bet-slider" id="bet-slider">
+              <div class="bet-amount-display" id="bet-amount-display">$20</div>
+            </div>
+            <div class="bet-actions">
+              <button class="button confirm-btn" id="confirm-bet-button"><i class="fas fa-check"></i> Confirm</button>
+              <button class="button cancel-btn" id="cancel-bet-button"><i class="fas fa-ban"></i> Cancel</button>
+            </div>
+          </div>
+        </div>
+        
+        <button class="button start-btn" id="start-button">Start Game</button>
+        <button class="button restart-btn" id="restart-button" style="display: none;">New Round</button>
+      </div>
+      
+      <div id="message"></div>
+    </div>
+    <script src="pokermon.js"></script>
+  </body>
+</html>
