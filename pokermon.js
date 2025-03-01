@@ -428,7 +428,6 @@ function showPlayerAction(playerId, action, amount = 0) {
   }, 2000);
 }
 
-// Update action buttons based on game state
 function updateActionButtons() {
   const checkButton = document.getElementById("check-button");
   const callButton = document.getElementById("call-button");
@@ -456,18 +455,17 @@ function updateActionButtons() {
     return;
   }
 
-  // If there's a bet, disable Check and enable Call
-  if (currentBet > 0) {
+  // Special case for Big Blind in preflop
+  const isBigBlind = currentStage === "preflop" && 
+                     document.querySelector(`#player-${human.id} .player-position`).textContent === "BB";
+  
+  // If there's a bet (and it's higher than what the player has already bet), enable Call
+  if (currentBet > human.bet) {
     checkButton.disabled = true;
 
-    // If human bet is already equal to current bet, disable Call
-    if (human.bet === currentBet) {
+    // If human doesn't have enough to call, disable Call button
+    if (human.stack < currentBet - human.bet) {
       callButton.disabled = true;
-    } else {
-      // If human doesn't have enough to call, disable Call button
-      if (human.stack < currentBet - human.bet) {
-        callButton.disabled = true;
-      }
     }
 
     // Enable/disable Raise based on stack size
@@ -478,8 +476,19 @@ function updateActionButtons() {
     // Show Raise instead of Bet when there's already a bet
     betButton.style.display = "none";
     raiseButton.style.display = "inline-block";
-  } else {
-    // No bet, so enable Check and disable Call
+  } 
+  // If it's the big blind's option and no one has raised
+  else if (isBigBlind && human.bet === currentBet && !lastRaiser) {
+    // Big blind can check or raise when no one has raised
+    checkButton.disabled = false;
+    callButton.disabled = true;
+    
+    // Show Bet instead of Raise when the BB checks
+    betButton.style.display = "inline-block";
+    raiseButton.style.display = "none";
+  }
+  else {
+    // No bet or player has already matched the current bet, so enable Check and disable Call
     checkButton.disabled = false;
     callButton.disabled = true;
 
@@ -920,11 +929,16 @@ function dealInitialCards() {
   }, 2000);
 }
 
-// Post small and big blinds
 function postBlinds() {
   // Find small blind and big blind players
   const sbPositionIndex = (dealerPosition + 1) % 4;
   const bbPositionIndex = (dealerPosition + 2) % 4;
+
+  // Reset all bets to zero first
+  players.forEach(player => {
+    player.bet = 0;
+    player.totalBet = 0;
+  });
 
   // Post small blind
   const sbPlayer = players[sbPositionIndex];
@@ -1047,66 +1061,52 @@ function renderPowerCards() {
   });
 }
 
-// Fix beginBettingRound to ensure the correct starting player
 function beginBettingRound() {
-  // Reset round bets
+  // Reset bets for the new round, preserving totalBet
   players.forEach((player) => {
-    player.bet = 0;
+    player.bet = 0; // Reset current round bet
   });
   
   // Reset betting round state
   bettingRoundComplete = false;
-  lastRaiser = null; // Reset last raiser at the beginning of each round
+  lastRaiser = null;
   
-  // Very important: Reset currentBet to 0 EXCEPT for the preflop round
-  // The preflop round should keep the big blind as the currentBet
+  // Reset currentBet to 0 except for preflop
   if (currentStage !== "preflop") {
     currentBet = 0;
-    minRaise = bigBlind; // Reset minRaise to big blind
+    minRaise = bigBlind;
   }
   
-  // Action starts with player after dealer (or after big blind in preflop)
+  console.log("Starting betting round for stage: " + currentStage);
+  
+  // Set the correct starting player based on the game stage
   if (currentStage === "preflop") {
-    // Preflop: start with UTG (player after big blind)
-    activePlayerIndex = (dealerPosition + 3) % 4;
+    // Preflop starts with UTG (player after big blind)
+    activePlayerIndex = (dealerPosition + 3) % players.length;
+    console.log("Preflop starting with player index: " + activePlayerIndex);
   } else {
-    // Postflop: start with small blind
-    activePlayerIndex = (dealerPosition + 1) % 4;
-    
-    // If small blind is folded, move to the next active player
-    let currentIndex = activePlayerIndex;
-    let loopCount = 0;
-    
-    while ((players[currentIndex].folded || players[currentIndex].allIn) && loopCount < players.length) {
-      currentIndex = (currentIndex + 1) % players.length;
-      loopCount++;
-    }
-    
-    activePlayerIndex = currentIndex;
+    // Postflop starts with SB position or first active player after dealer
+    activePlayerIndex = (dealerPosition + 1) % players.length;
+    console.log("Postflop starting with player index: " + activePlayerIndex);
   }
-
+  
   // Skip folded or all-in players
-  let skippedPlayers = 0;
-  while (
-    players[activePlayerIndex].folded || 
-    players[activePlayerIndex].allIn
-  ) {
-    activePlayerIndex = (activePlayerIndex + 1) % 4;
-    skippedPlayers++;
-    
-    // If we've gone through all players, we're done
-    if (skippedPlayers >= players.length) {
-      // All players are either folded or all-in, move to next stage
-      advanceGame();
-      return;
-    }
+  let loopCount = 0;
+  while ((players[activePlayerIndex].folded || players[activePlayerIndex].allIn) && loopCount < players.length) {
+    activePlayerIndex = (activePlayerIndex + 1) % players.length;
+    loopCount++;
   }
-
-  // Process non-human players first
+  
+  // If all players but one are folded or all-in, advance the game
+  if (loopCount >= players.length - 1) {
+    advanceGame();
+    return;
+  }
+  
+  // Process AI players immediately, activate human player for action
   if (!players[activePlayerIndex].isHuman) {
     processAIActions();
   } else {
-    // Activate human player
     activateHumanPlayer();
   }
 }
@@ -1137,61 +1137,38 @@ function activateHumanPlayer() {
 
 // Improved version of isBettingRoundComplete that properly handles folds
 function isBettingRoundComplete() {
-  // Get active (not folded) players
-  const activePlayers = players.filter(p => !p.folded);
+  // Count active non-all-in players
+  const activePlayers = players.filter(p => !p.folded && !p.allIn);
   
-  // If only one player left, betting is complete
+  // If there's only 0 or 1 active players, betting is done
   if (activePlayers.length <= 1) {
     return true;
   }
   
-  // If all players are all-in, the round is complete
-  if (activePlayers.every(p => p.allIn)) {
-    return true;
+  // Check if all active players have matched the current bet
+  // or if everyone has acted after the last raiser
+  
+  // If there's no current bet, everyone needs to have acted
+  if (currentBet === 0) {
+    // In this case, we need to make sure every active player has had a chance to act
+    // This is challenging to track precisely, so we'll use the fact that if we've gone
+    // around the table once and no one has bet, we're done
+    return allPlayersHaveActed();
   }
   
-  // Count players who aren't all-in
-  const nonAllInPlayers = activePlayers.filter(p => !p.allIn);
-  
-  // If all non-all-in players have the same bet amount, and it's equal to the current bet
-  if (nonAllInPlayers.length > 0 && nonAllInPlayers.every(p => p.bet === currentBet)) {
-    return true;
-  }
-  
-  // If there's a last raiser, make sure everyone after them has acted
-  if (lastRaiser && !lastRaiser.folded) {
-    // Find the index of the last raiser among active players
-    const lastRaiserIndex = players.indexOf(lastRaiser);
-    
-    // Check if all players after the last raiser have acted (folded, all-in, or matched the bet)
-    let currentIndex = (lastRaiserIndex + 1) % players.length;
-    
-    while (currentIndex !== lastRaiserIndex) {
-      const player = players[currentIndex];
-      
-      // If player hasn't folded, isn't all-in, and hasn't matched the bet, 
-      // then not everyone has acted
-      if (!player.folded && !player.allIn && player.bet !== currentBet) {
-        return false;
-      }
-      
-      currentIndex = (currentIndex + 1) % players.length;
-    }
-    
-    // If we made it through the loop without returning false, everyone has acted
-    return true;
-  }
-  
-  // Default case - not complete
-  return false;
+  // If there's a current bet, all active players must have matched it or folded
+  return activePlayers.every(player => player.bet === currentBet);
 }
-
-// Improved processHumanAction to ensure proper handling of folds
+// Fix 4: Update processHumanAction to handle call amounts correctly
 function processHumanAction(action, betAmount = 0) {
   const human = players.find((p) => p.isHuman);
 
   if (action === "Check") {
-    if (currentBet === 0 || human.bet === currentBet) {
+    // Special case for Big Blind in preflop
+    const isBigBlind = currentStage === "preflop" && 
+                       document.querySelector(`#player-${human.id} .player-position`).textContent === "BB";
+    
+    if (currentBet === 0 || human.bet === currentBet || (isBigBlind && human.bet === currentBet && !lastRaiser)) {
       addLog("You checked.", "action");
       showPlayerAction(human.id, "Check");
     } else {
@@ -1200,11 +1177,12 @@ function processHumanAction(action, betAmount = 0) {
     }
   } else if (action === "Call") {
     if (currentBet > human.bet) {
+      // Calculate the correct call amount (difference between current bet and player's bet)
       const callAmount = Math.min(currentBet - human.bet, human.stack);
-      human.bet = human.bet + callAmount;
-      human.totalBet += callAmount;
       human.stack -= callAmount;
       pot += callAmount;
+      human.bet += callAmount;
+      human.totalBet += callAmount;
 
       // Check for all-in
       if (human.stack === 0) {
@@ -1221,7 +1199,9 @@ function processHumanAction(action, betAmount = 0) {
     }
   } else if (action === "Bet" || action === "Raise") {
     // Validate bet amount
-    if (action === "Bet" && currentBet > 0) {
+    if (action === "Bet" && currentBet > 0 && !(currentStage === "preflop" && 
+        document.querySelector(`#player-${human.id} .player-position`).textContent === "BB" && 
+        human.bet === currentBet && !lastRaiser)) {
       alert("Cannot bet when there's already a bet. Use Raise instead.");
       return false;
     }
@@ -1253,14 +1233,14 @@ function processHumanAction(action, betAmount = 0) {
     }
 
     // Process bet/raise
-    const raiseAmount = betAmount - human.bet;
-    human.stack -= raiseAmount;
-    pot += raiseAmount;
+    const actualRaiseAmount = betAmount - human.bet;
+    human.stack -= actualRaiseAmount;
+    pot += actualRaiseAmount;
     lastRaiseAmount = betAmount - currentBet;
     minRaise = lastRaiseAmount; // Set new minimum raise
     currentBet = betAmount;
     human.bet = betAmount;
-    human.totalBet += raiseAmount;
+    human.totalBet += actualRaiseAmount;
     lastRaiser = human;
 
     // Check for all-in
@@ -1301,9 +1281,10 @@ function processHumanAction(action, betAmount = 0) {
 
     if (allInAmount <= currentBet) {
       // All-in as a call (or partial call)
-      human.bet = allInAmount;
-      pot += human.stack;
-      human.totalBet += human.stack;
+      const actualAllInAmount = human.stack; // Only add what's in the stack
+      pot += actualAllInAmount;
+      human.bet += actualAllInAmount;
+      human.totalBet += actualAllInAmount;
       human.stack = 0;
       human.allIn = true;
 
@@ -1311,19 +1292,19 @@ function processHumanAction(action, betAmount = 0) {
       showPlayerAction(human.id, "All-In", allInAmount);
     } else {
       // All-in as a raise
-      const raiseAmount = allInAmount - currentBet;
-
-      if (raiseAmount >= minRaise) {
+      const actualRaiseAmount = human.stack;
+      
+      if (allInAmount - currentBet >= minRaise) {
         // Valid raise
-        lastRaiseAmount = raiseAmount;
+        lastRaiseAmount = allInAmount - currentBet;
         minRaise = lastRaiseAmount;
+        lastRaiser = human;
       }
 
       currentBet = allInAmount;
-      lastRaiser = human;
-      pot += human.stack;
+      pot += actualRaiseAmount;
       human.bet = allInAmount;
-      human.totalBet += human.stack;
+      human.totalBet += actualRaiseAmount;
       human.stack = 0;
       human.allIn = true;
 
@@ -1341,34 +1322,12 @@ function processHumanAction(action, betAmount = 0) {
   document.getElementById("betting-controls").classList.remove("visible");
 
   // Move to next player or next stage
-  if (action !== "Fold" || remainingPlayers?.length !== 1) {
-    activePlayerIndex = (activePlayerIndex + 1) % 4;
-
-    // Skip folded or all-in players
-    while (
-      activePlayerIndex < players.length &&
-      (players[activePlayerIndex].folded || players[activePlayerIndex].allIn)
-    ) {
-      activePlayerIndex = (activePlayerIndex + 1) % 4;
-    }
-
-    // Check if everyone has acted
-    if (isBettingRoundComplete()) {
-      // Move to next stage
-      advanceGame();
-    } else if (!players[activePlayerIndex].isHuman) {
-      // Process AI actions
-      setTimeout(processAIActions, 500);
-    } else {
-      // Activate human player
-      activateHumanPlayer();
-    }
-  }
+  moveToNextPlayer();
 
   return true;
 }
 
-// Process AI player actions with improved logic - Fixed handTier issue
+// Fix to ensure correct call amounts for AI players too
 function processAIActions() {
   if (!players[activePlayerIndex] || players[activePlayerIndex].isHuman) {
     return;
@@ -1396,8 +1355,9 @@ function processAIActions() {
     // Get a count of active players (not folded)
     const activePlayers = players.filter(p => !p.folded).length;
     
-    // Determine if AI has already bet in this round
-    const hasAlreadyBet = ai.bet > 0;
+    // Special case for Big Blind in preflop
+    const isBigBlind = currentStage === "preflop" && 
+                       document.querySelector(`#player-${ai.id} .player-position`).textContent === "BB";
     
     // Track if any AI has already raised in this round to reduce re-raising
     const aiRaiseCount = players.filter(p => 
@@ -1407,10 +1367,8 @@ function processAIActions() {
     // Add this logic to reduce the chance that AIs keep raising each other
     const shouldLimitRaises = aiRaiseCount >= 1;
     
-    // SAFETY CHECK: If there's no bet, never fold
-    if (currentBet === 0) {
-      // If no bet on the table, check or bet based on hand strength
-      
+    // If there's no bet, or BB with option to check
+    if (currentBet === 0 || (isBigBlind && ai.bet === currentBet && !lastRaiser)) {
       // Premium hands always bet
       if (handTier === "premium") {
         const betSize = Math.min(Math.max(pot * 0.6, bigBlind * 2), ai.stack);
@@ -1433,20 +1391,18 @@ function processAIActions() {
     } 
     // There's already a bet
     else {
+      // Calculate correct call amount
       const callAmount = currentBet - ai.bet;
       
       // Premium hands might raise, but not if there have been too many raises already
       if (handTier === "premium" && (!shouldLimitRaises || Math.random() < 0.2)) {
         if (ai.stack > callAmount * 2) {
           // Have enough to raise
-          const raiseSize = Math.min(
-            currentBet * 1.5, 
-            ai.stack + ai.bet
-          );
+          const raiseSize = Math.min(currentBet * 1.5, ai.stack + ai.bet);
           makeRaise(ai, raiseSize);
         } else {
           // Not enough to raise, call
-          makeCall(ai, callAmount);
+          makeCall(ai);
         }
       }
       // Strong hands call and sometimes raise (but with low probability if raises are limited)
@@ -1454,33 +1410,27 @@ function processAIActions() {
         const raiseProb = shouldLimitRaises ? 0.15 : 0.3;
         
         if (Math.random() < raiseProb && ai.stack > callAmount * 2) {
-          const raiseSize = Math.min(
-            currentBet * 1.3, 
-            ai.stack + ai.bet
-          );
+          const raiseSize = Math.min(currentBet * 1.3, ai.stack + ai.bet);
           makeRaise(ai, raiseSize);
         } else {
-          makeCall(ai, callAmount);
+          makeCall(ai);
         }
       }
       // Average hands call small bets
       else if (handTier === "average" && callAmount <= ai.stack * 0.3) {
-        makeCall(ai, callAmount);
+        makeCall(ai);
       }
       // Weak hands call very small bets
       else if (handTier === "weak" && callAmount <= ai.stack * 0.15) {
-        makeCall(ai, callAmount);
+        makeCall(ai);
       }
       // Occasionally bluff, but very rarely if raises are limited
       else if (Math.random() < (shouldLimitRaises ? 0.05 : 0.15) && getPlayerPosition(ai) === "late" && currentStage === "preflop") {
         if (ai.stack > callAmount * 2) {
-          const raiseSize = Math.min(
-            currentBet * 1.2, 
-            ai.stack + ai.bet
-          );
+          const raiseSize = Math.min(currentBet * 1.2, ai.stack + ai.bet);
           makeRaise(ai, raiseSize);
         } else {
-          makeCall(ai, callAmount);
+          makeCall(ai);
         }
       }
       // Otherwise fold
@@ -1524,16 +1474,21 @@ function makeRaise(player, amount) {
   moveToNextPlayer();
 }
 
-function makeCall(player, callAmount) {
+
+function makeCall(player) {
+  // Calculate the correct amount to call (difference between current bet and player's bet)
+  const callAmount = currentBet - player.bet;
+  
   if (player.stack <= callAmount) {
-    // All-in call
-    pot += player.stack;
-    player.bet += player.stack;
-    player.totalBet += player.stack;
+    // All-in call (can only call with what you have)
+    const allInAmount = player.stack;
+    pot += allInAmount;
+    player.bet += allInAmount;
+    player.totalBet += allInAmount;
     player.stack = 0;
     player.allIn = true;
     
-    addLog(`${player.name} calls all-in with $${player.bet}!`, "bet");
+    addLog(`${player.name} calls all-in with $${allInAmount}!`, "bet");
     showPlayerAction(player.id, "All-In", player.bet);
   } else {
     // Regular call
@@ -1564,10 +1519,9 @@ function makeFold(player) {
   addLog(`${player.name} folds.`, "fold");
   showPlayerAction(player.id, "Fold");
   
-  // Add folded class to player div
   document.getElementById(`player-${player.id}`).classList.add("folded");
   
-  // Special check after folding - if only one active player remains, end the round
+  // Special check - if only one active player remains after folding
   const remainingPlayers = players.filter(p => !p.folded);
   if (remainingPlayers.length === 1) {
     // Immediately advance the game if only one player remains
@@ -1913,39 +1867,35 @@ function moveToNextPlayer() {
   updatePotDisplay();
   renderHands();
   
-  // Keep track of our starting position to detect infinite loops
-  const startingPlayerIndex = activePlayerIndex;
-  
-  // Go to next player
-  activePlayerIndex = (activePlayerIndex + 1) % players.length;
-  
-  // Skip folded or all-in players
-  while (
-    (players[activePlayerIndex].folded || players[activePlayerIndex].allIn) &&
-    // Make sure we haven't gone full circle (which would mean all players are folded/all-in)
-    activePlayerIndex !== startingPlayerIndex
-  ) {
-    activePlayerIndex = (activePlayerIndex + 1) % players.length;
-  }
-  
-  // If we've gone full circle and landed on a folded/all-in player,
-  // it means all remaining players are folded or all-in
-  if ((players[activePlayerIndex].folded || players[activePlayerIndex].allIn) &&
-      activePlayerIndex === startingPlayerIndex) {
-    // Everyone has folded or is all-in, advance to next stage
+  // If betting round is complete, advance to the next stage
+  if (isBettingRoundComplete()) {
+    console.log("Betting round complete, advancing game");
     advanceGame();
     return;
   }
   
-  // Check if betting round is complete
-  if (isBettingRoundComplete()) {
-    // Move to next stage
+  // Otherwise, move to the next player
+  activePlayerIndex = (activePlayerIndex + 1) % players.length;
+  
+  // Skip folded or all-in players
+  let loopCount = 0;
+  while ((players[activePlayerIndex].folded || players[activePlayerIndex].allIn) && loopCount < players.length) {
+    activePlayerIndex = (activePlayerIndex + 1) % players.length;
+    loopCount++;
+  }
+  
+  // If we've looped through all players, betting must be complete
+  if (loopCount >= players.length) {
+    console.log("No more active players to act, advancing game");
     advanceGame();
-  } else if (!players[activePlayerIndex].isHuman) {
-    // Continue with next AI
+    return;
+  }
+  
+  // Process AI player's action or activate human player
+  if (!players[activePlayerIndex].isHuman) {
+    // Add a delay before AI action for a more natural flow
     setTimeout(processAIActions, 800);
   } else {
-    // Activate human player
     activateHumanPlayer();
   }
 }
@@ -1975,7 +1925,10 @@ function advanceGame() {
     return;
   }
   
-  // Otherwise advance to next stage ONE AT A TIME
+  // Reset for next stage
+  bettingRoundComplete = false;
+  
+  // Otherwise advance to next stage properly
   if (currentStage === "preflop") {
     // After preflop, reveal arena
     setTimeout(() => {
@@ -2093,6 +2046,12 @@ function getPlayerPosition(player) {
   if (position === "SB" || position === "BB" || position === "UTG") return "early";
   
   return "middle";
+}
+
+function allPlayersHaveActed() {
+  // In a real implementation, you would track player actions in a round
+  // For simplicity, we'll assume all have acted if no bets are present
+  return players.filter(p => !p.folded && p.bet > 0).length === 0;
 }
 
 // Show final showdown
@@ -2409,3 +2368,19 @@ const css = `
 const style = document.createElement('style');
 style.textContent = css;
 document.head.appendChild(style);
+
+function debugGameState() {
+  console.log("===== GAME STATE DEBUG =====");
+  console.log("Current Stage:", currentStage);
+  console.log("Active Player Index:", activePlayerIndex);
+  console.log("Current Bet:", currentBet);
+  console.log("Pot:", pot);
+  console.log("Dealer Position:", dealerPosition);
+  
+  console.log("Players:");
+  players.forEach((player, index) => {
+    console.log(`${index}: ${player.name} - Stack: $${player.stack}, Bet: $${player.bet}, Total Bet: $${player.totalBet}, Folded: ${player.folded}, All-in: ${player.allIn}`);
+  });
+  
+  console.log("==========================");
+}
