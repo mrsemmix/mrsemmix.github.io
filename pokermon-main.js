@@ -49,6 +49,79 @@ function clearAllCards() {
   }
 }
 
+// Function to check and repair button handlers
+function repairButtonHandlers() {
+  console.log("Running automatic button handler repair");
+
+  // Fix action buttons
+  ["check", "call", "bet", "raise", "fold", "all-in"].forEach((action) => {
+    const button = document.getElementById(`${action}-button`);
+    if (button) {
+      button.onclick = function () {
+        console.log(`${action} clicked`);
+        if (window.GAME && window.GAME.engine) {
+          const capitalizedAction =
+            action.charAt(0).toUpperCase() + action.slice(1);
+          window.GAME.engine.processHumanAction(capitalizedAction);
+        }
+      };
+      console.log(`Fixed ${action} button`);
+    }
+  });
+
+  // Fix bet slider buttons
+  const confirmBetButton = document.getElementById("confirm-bet-button");
+  if (confirmBetButton) {
+    confirmBetButton.onclick = function () {
+      const betAmount = parseInt(document.getElementById("bet-slider").value);
+      // Determine action based on current state
+      let action = "Bet";
+      if (window.GAME && window.GAME.state.currentBet > 0) {
+        action = "Raise";
+      }
+
+      // Reset display
+      document.getElementById("bet-slider-container").style.display = "none";
+      document.getElementById("check-button").style.display = "inline-block";
+      document.getElementById("call-button").style.display = "inline-block";
+      document.getElementById("bet-button").style.display = "inline-block";
+      document.getElementById("raise-button").style.display = "inline-block";
+      document.getElementById("fold-button").style.display = "inline-block";
+      document.getElementById("all-in-button").style.display = "inline-block";
+
+      // Process the bet/raise
+      if (window.GAME && window.GAME.engine) {
+        window.GAME.engine.processHumanAction(action, betAmount);
+      }
+    };
+    console.log("Fixed confirm bet button");
+  }
+
+  const cancelBetButton = document.getElementById("cancel-bet-button");
+  if (cancelBetButton) {
+    cancelBetButton.onclick = function () {
+      // Hide bet slider
+      document.getElementById("bet-slider-container").style.display = "none";
+
+      // Show action buttons
+      document.getElementById("check-button").style.display = "inline-block";
+      document.getElementById("call-button").style.display = "inline-block";
+      document.getElementById("bet-button").style.display = "inline-block";
+      document.getElementById("raise-button").style.display = "inline-block";
+      document.getElementById("fold-button").style.display = "inline-block";
+      document.getElementById("all-in-button").style.display = "inline-block";
+
+      // Update buttons
+      if (window.GAME && window.GAME.engine) {
+        window.GAME.engine.updateActionButtons();
+      }
+    };
+    console.log("Fixed cancel bet button");
+  }
+
+  console.log("Button repair complete");
+}
+
 // Set up all event listeners
 function setupEventListeners() {
   console.log("Setting up event listeners");
@@ -106,6 +179,7 @@ function setupEventListeners() {
   const checkButton = document.getElementById("check-button");
   if (checkButton) {
     checkButton.onclick = function () {
+      console.log("Check button clicked");
       if (window.GAME && window.GAME.engine) {
         window.GAME.engine.processHumanAction("Check");
       }
@@ -116,6 +190,7 @@ function setupEventListeners() {
   const callButton = document.getElementById("call-button");
   if (callButton) {
     callButton.onclick = function () {
+      console.log("Call button clicked");
       if (window.GAME && window.GAME.engine) {
         window.GAME.engine.processHumanAction("Call");
       }
@@ -126,6 +201,7 @@ function setupEventListeners() {
   const betButton = document.getElementById("bet-button");
   if (betButton) {
     betButton.onclick = function () {
+      console.log("Bet button clicked");
       const betSlider = document.getElementById("bet-slider");
       const betAmountDisplay = document.getElementById("bet-amount-display");
       const human = window.GAME
@@ -141,7 +217,7 @@ function setupEventListeners() {
       const minBet = window.GAME.BIG_BLIND;
       betSlider.min = minBet;
       betSlider.max = human.stack;
-      betSlider.value = Math.min(minBet, human.stack);
+      betSlider.value = Math.min(minBet * 2, human.stack);
 
       // Update display
       betAmountDisplay.textContent = "$" + betSlider.value;
@@ -163,6 +239,7 @@ function setupEventListeners() {
   const raiseButton = document.getElementById("raise-button");
   if (raiseButton) {
     raiseButton.onclick = function () {
+      console.log("Raise button clicked");
       const betSlider = document.getElementById("bet-slider");
       const betAmountDisplay = document.getElementById("bet-amount-display");
       const human = window.GAME
@@ -174,15 +251,13 @@ function setupEventListeners() {
         return;
       }
 
-      // Correctly calculate minimum raise
-      const minRaise =
-        window.GAME.state.currentBet +
-        Math.max(window.GAME.state.minRaise, window.GAME.BIG_BLIND);
+      // Correctly calculate minimum raise - current bet plus big blind
+      const minRaise = window.GAME.state.currentBet + window.GAME.BIG_BLIND;
 
       // Set min/max/value
       betSlider.min = minRaise;
       betSlider.max = human.stack + human.bet;
-      betSlider.value = Math.min(minRaise, human.stack + human.bet);
+      betSlider.value = Math.min(minRaise * 2, human.stack + human.bet);
 
       // Update display
       betAmountDisplay.textContent = "$" + betSlider.value;
@@ -204,6 +279,7 @@ function setupEventListeners() {
   const foldButton = document.getElementById("fold-button");
   if (foldButton) {
     foldButton.onclick = function () {
+      console.log("Fold button clicked");
       if (window.GAME && window.GAME.engine) {
         window.GAME.engine.processHumanAction("Fold");
       }
@@ -214,6 +290,7 @@ function setupEventListeners() {
   const allInButton = document.getElementById("all-in-button");
   if (allInButton) {
     allInButton.onclick = function () {
+      console.log("All-in button clicked");
       if (window.GAME && window.GAME.engine) {
         window.GAME.engine.processHumanAction("All-In");
       }
@@ -235,6 +312,7 @@ function setupEventListeners() {
   const confirmBetButton = document.getElementById("confirm-bet-button");
   if (confirmBetButton) {
     confirmBetButton.onclick = function () {
+      console.log("Confirm bet button clicked");
       const betAmount = parseInt(document.getElementById("bet-slider").value);
       const human = window.GAME
         ? window.GAME.state.players.find((p) => p.isHuman)
@@ -266,6 +344,7 @@ function setupEventListeners() {
   const cancelBetButton = document.getElementById("cancel-bet-button");
   if (cancelBetButton) {
     cancelBetButton.onclick = function () {
+      console.log("Cancel bet button clicked");
       // Hide bet slider
       document.getElementById("bet-slider-container").style.display = "none";
 
@@ -294,13 +373,20 @@ function setupEventListeners() {
       }
     };
   }
-  setTimeout(repairButtonHandlers, 10000);
+
   console.log("Event listeners setup complete");
+
+  // Add automatic button repair after a short delay
+  setTimeout(repairButtonHandlers, 1000);
 }
 
 // Prevent multiple initializations from window.load
 window.addEventListener("load", function () {
   console.log("Window load event - checking start button again");
+
+  // Fix buttons after load
+  setTimeout(repairButtonHandlers, 1000);
+
   const startButton = document.getElementById("start-button");
   if (startButton) {
     startButton.addEventListener(
@@ -328,73 +414,3 @@ window.addEventListener("load", function () {
     );
   }
 });
-
-function repairButtonHandlers() {
-  console.log("Running automatic button handler repair");
-
-  // Fix individual buttons
-  ["check", "call", "bet", "raise", "fold", "all-in"].forEach((action) => {
-    const button = document.getElementById(`${action}-button`);
-    if (button) {
-      button.onclick = function () {
-        console.log(`${action} clicked`);
-        if (window.GAME && window.GAME.engine) {
-          const capitalizedAction =
-            action.charAt(0).toUpperCase() + action.slice(1);
-          window.GAME.engine.processHumanAction(capitalizedAction);
-        }
-      };
-    }
-  });
-
-  // Fix confirm and cancel bet buttons
-  const confirmBetButton = document.getElementById("confirm-bet-button");
-  if (confirmBetButton) {
-    confirmBetButton.onclick = function () {
-      const betAmount = parseInt(document.getElementById("bet-slider").value);
-
-      // Determine action based on current state
-      let action = "Bet";
-      if (window.GAME && window.GAME.state.currentBet > 0) {
-        action = "Raise";
-      }
-
-      // Reset display
-      document.getElementById("bet-slider-container").style.display = "none";
-      document.getElementById("check-button").style.display = "inline-block";
-      document.getElementById("call-button").style.display = "inline-block";
-      document.getElementById("bet-button").style.display = "inline-block";
-      document.getElementById("raise-button").style.display = "inline-block";
-      document.getElementById("fold-button").style.display = "inline-block";
-      document.getElementById("all-in-button").style.display = "inline-block";
-
-      // Process the bet/raise
-      if (window.GAME && window.GAME.engine) {
-        window.GAME.engine.processHumanAction(action, betAmount);
-      }
-    };
-  }
-
-  const cancelBetButton = document.getElementById("cancel-bet-button");
-  if (cancelBetButton) {
-    cancelBetButton.onclick = function () {
-      // Hide bet slider
-      document.getElementById("bet-slider-container").style.display = "none";
-
-      // Show action buttons
-      document.getElementById("check-button").style.display = "inline-block";
-      document.getElementById("call-button").style.display = "inline-block";
-      document.getElementById("bet-button").style.display = "inline-block";
-      document.getElementById("raise-button").style.display = "inline-block";
-      document.getElementById("fold-button").style.display = "inline-block";
-      document.getElementById("all-in-button").style.display = "inline-block";
-
-      // Update buttons
-      if (window.GAME && window.GAME.engine) {
-        window.GAME.engine.updateActionButtons();
-      }
-    };
-  }
-
-  console.log("Button repair complete");
-}

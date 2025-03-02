@@ -145,6 +145,8 @@ function clearAllCards() {
 
 // Reset for a new round (preserving stacks)
 function resetRound() {
+  console.log("Resetting for new round");
+
   // Create and shuffle deck
   GAME.state.deck = GAME.utils.shuffle(GAME.utils.createDeck());
 
@@ -265,15 +267,15 @@ function dealInitialCards() {
 
           let iconHTML = GAME.utils.getIcon(card.element);
           cardDiv.innerHTML = `
-              <div class="card-type">${iconHTML} ${card.element}</div>
-              <div class="card-name">${card.name}</div>
-              <div class="card-value">${card.value}</div>
-              <div class="bonus-indicator">${
-                GAME.utils.calculateCardValue(card) - card.value >= 0
-                  ? "+" + (GAME.utils.calculateCardValue(card) - card.value)
-                  : GAME.utils.calculateCardValue(card) - card.value
-              }</div>
-            `;
+            <div class="card-type">${iconHTML} ${card.element}</div>
+            <div class="card-name">${card.name}</div>
+            <div class="card-value">${card.value}</div>
+            <div class="bonus-indicator">${
+              GAME.utils.calculateCardValue(card) - card.value >= 0
+                ? "+" + (GAME.utils.calculateCardValue(card) - card.value)
+                : GAME.utils.calculateCardValue(card) - card.value
+            }</div>
+          `;
           container.appendChild(cardDiv);
         } else {
           // Create card back for AI players
@@ -488,7 +490,6 @@ function beginBettingRound() {
     }, 800);
   } else {
     GAME.state._beginBettingRoundInProgress = false;
-    console.log("Human's turn, activating controls");
     activateHumanPlayer();
   }
 }
@@ -778,7 +779,7 @@ function makeRaise(player, amount) {
   const raiseAmount = raiseTotal - player.bet;
 
   // Check if this is a valid raise
-  const minimumRaiseTotal = GAME.state.currentBet + GAME.state.minRaise;
+  const minimumRaiseTotal = GAME.state.currentBet + GAME.BIG_BLIND;
 
   // Use the larger of minimum raise or intended raise
   const finalRaiseTotal = Math.max(raiseTotal, minimumRaiseTotal);
@@ -797,7 +798,7 @@ function makeRaise(player, amount) {
   player.stack -= actualRaiseAmount;
   GAME.state.pot += actualRaiseAmount;
   GAME.state.lastRaiseAmount = finalTotal - GAME.state.currentBet;
-  GAME.state.minRaise = GAME.state.lastRaiseAmount;
+  GAME.state.minRaise = GAME.BIG_BLIND;
   GAME.state.currentBet = finalTotal;
   player.bet = finalTotal;
   player.totalBet += actualRaiseAmount;
@@ -832,6 +833,8 @@ function makeFold(player) {
 // Process human player action
 function processHumanAction(action, betAmount = 0) {
   const human = GAME.state.players.find((p) => p.isHuman);
+
+  console.log(`Processing human action: ${action}, amount: ${betAmount}`);
 
   if (action === "Check") {
     // Special case for Big Blind in preflop
@@ -886,88 +889,61 @@ function processHumanAction(action, betAmount = 0) {
       alert("Nothing to call.");
       return false;
     }
-  } else if (action === "Bet" || action === "Raise") {
+  } else if (action === "Bet") {
     // Ensure bets are round numbers
     betAmount = Math.floor(betAmount);
 
-    // Validate bet amount
-    if (
-      action === "Bet" &&
-      GAME.state.currentBet > 0 &&
-      !(
-        GAME.state.currentStage === "preflop" &&
-        document.querySelector(`#player-${human.id} .player-position`)
-          .textContent === "BB" &&
-        human.bet === GAME.state.currentBet &&
-        !GAME.state.lastRaiser
-      )
-    ) {
-      alert("Cannot bet when there's already a bet. Use Raise instead.");
+    if (betAmount < GAME.BIG_BLIND) {
+      alert("Minimum bet is $" + GAME.BIG_BLIND);
       return false;
     }
 
-    if (action === "Raise" && betAmount <= GAME.state.currentBet) {
-      alert(
-        "Your raise must exceed the current bet ($" +
-          GAME.state.currentBet +
-          ")."
-      );
+    if (betAmount > human.stack) {
+      alert("You don't have enough chips for this bet.");
       return false;
     }
 
-    // Enforce minimum bet of half pot
-    const minimumBet = Math.max(Math.ceil(GAME.state.pot / 2), GAME.BIG_BLIND);
-    if (action === "Bet" && betAmount < minimumBet) {
-      alert(
-        "Minimum bet is $" +
-          minimumBet +
-          " (half of pot or big blind, whichever is larger)."
-      );
-      return false;
-    }
-
-    if (
-      action === "Raise" &&
-      betAmount - GAME.state.currentBet < GAME.state.minRaise
-    ) {
-      alert(
-        "Minimum raise is $" +
-          GAME.state.minRaise +
-          " above current bet ($" +
-          GAME.state.currentBet +
-          ")."
-      );
-      return false;
-    }
-
-    if (betAmount > human.stack + human.bet) {
-      alert("You don't have enough chips for this bet/raise.");
-      return false;
-    }
-
-    // Process bet/raise
-    const actualRaiseAmount = betAmount - human.bet;
-    human.stack -= actualRaiseAmount;
-    GAME.state.pot += actualRaiseAmount;
-    GAME.state.lastRaiseAmount = betAmount - GAME.state.currentBet;
-    GAME.state.minRaise = GAME.state.lastRaiseAmount; // Set new minimum raise
-    GAME.state.currentBet = betAmount;
+    // Process bet
+    human.stack -= betAmount;
+    GAME.state.pot += betAmount;
     human.bet = betAmount;
-    human.totalBet += actualRaiseAmount;
+    human.totalBet += betAmount;
+    GAME.state.currentBet = betAmount;
+    GAME.state.minRaise = GAME.BIG_BLIND;
     GAME.state.lastRaiser = human;
 
-    // Check for all-in
-    if (human.stack === 0) {
-      human.allIn = true;
-      GAME.utils.addLog(`You went all-in with ${betAmount}!`, "bet");
-      GAME.utils.showPlayerAction(human.id, "All-In", betAmount);
-    } else {
-      GAME.utils.addLog(
-        `You ${action.toLowerCase()}d to ${betAmount}.`,
-        "action"
+    GAME.utils.addLog(`You bet $${betAmount}.`, "bet");
+    GAME.utils.showPlayerAction(human.id, "Bet", betAmount);
+  } else if (action === "Raise") {
+    // Ensure raises are round numbers
+    betAmount = Math.floor(betAmount);
+
+    // Validate raise amount
+    if (betAmount <= GAME.state.currentBet) {
+      alert(
+        "Your raise must exceed the current bet of $" + GAME.state.currentBet
       );
-      GAME.utils.showPlayerAction(human.id, action, betAmount);
+      return false;
     }
+
+    const raiseAmount = betAmount - human.bet;
+    if (raiseAmount > human.stack) {
+      alert("You don't have enough chips for this raise.");
+      return false;
+    }
+
+    // Process raise
+    human.stack -= raiseAmount;
+    GAME.state.pot += raiseAmount;
+    GAME.state.lastRaiseAmount = betAmount - GAME.state.currentBet;
+    GAME.state.minRaise = GAME.BIG_BLIND;
+    GAME.state.currentBet = betAmount;
+    human.bet = betAmount;
+    human.totalBet += raiseAmount;
+    GAME.state.lastRaiser = human;
+
+    GAME.utils.addLog(`You raised to $${betAmount}.`, "bet");
+    GAME.utils.showPlayerAction(human.id, "Raise", betAmount);
   } else if (action === "Fold") {
     human.folded = true;
     human.active = false;
@@ -1010,10 +986,10 @@ function processHumanAction(action, betAmount = 0) {
       // All-in as a raise
       const actualRaiseAmount = human.stack;
 
-      if (allInAmount - GAME.state.currentBet >= GAME.state.minRaise) {
+      if (allInAmount - GAME.state.currentBet >= GAME.BIG_BLIND) {
         // Valid raise
         GAME.state.lastRaiseAmount = allInAmount - GAME.state.currentBet;
-        GAME.state.minRaise = GAME.state.lastRaiseAmount;
+        GAME.state.minRaise = GAME.BIG_BLIND;
         GAME.state.lastRaiser = human;
       }
 
@@ -1060,6 +1036,9 @@ function processAIActions() {
     return;
   }
 
+  // Highlight active AI
+  highlightActivePlayer();
+
   // Improved AI logic with better decision making
   setTimeout(() => {
     // Calculate hand value
@@ -1095,24 +1074,18 @@ function processAIActions() {
     ) {
       // Premium hands always bet
       if (handTier === "premium") {
-        // Round to integer and ensure minimum bet size of half pot
+        // Round to integer and use Big Blind as minimum
         const betSize = Math.min(
-          Math.max(
-            Math.floor(GAME.state.pot * 0.6),
-            Math.ceil(GAME.state.pot / 2)
-          ),
+          Math.max(Math.floor(GAME.state.pot * 0.6), GAME.BIG_BLIND),
           ai.stack
         );
         makeBet(ai, betSize);
       }
       // Strong hands bet with 70% probability
       else if (handTier === "strong" && Math.random() < 0.7) {
-        // Round to integer and ensure minimum bet size of half pot
+        // Round to integer and use Big Blind as minimum
         const betSize = Math.min(
-          Math.max(
-            Math.floor(GAME.state.pot * 0.4),
-            Math.ceil(GAME.state.pot / 2)
-          ),
+          Math.max(Math.floor(GAME.state.pot * 0.4), GAME.BIG_BLIND),
           ai.stack
         );
         makeBet(ai, betSize);
@@ -1123,12 +1096,9 @@ function processAIActions() {
         GAME.utils.getPlayerPosition(ai) === "late" &&
         Math.random() < 0.4
       ) {
-        // Round to integer and ensure minimum bet size of half pot
+        // Round to integer and use Big Blind as minimum
         const betSize = Math.min(
-          Math.max(
-            Math.floor(GAME.state.pot * 0.25),
-            Math.ceil(GAME.state.pot / 2)
-          ),
+          Math.max(Math.floor(GAME.state.pot * 0.25), GAME.BIG_BLIND),
           ai.stack
         );
         makeBet(ai, betSize);
@@ -1397,13 +1367,13 @@ function renderHands() {
 
         let iconHTML = GAME.utils.getIcon(card.element);
         cardDiv.innerHTML = `
-              <div class="card-type">${iconHTML} ${card.element}</div>
-              <div class="card-name">${card.name}</div>
-              <div class="card-value">${card.value}</div>
-              <div class="bonus-indicator ${bonusClass}">${
+            <div class="card-type">${iconHTML} ${card.element}</div>
+            <div class="card-name">${card.name}</div>
+            <div class="card-value">${card.value}</div>
+            <div class="bonus-indicator ${bonusClass}">${
           bonus >= 0 ? "+" + bonus : bonus
         }</div>
-            `;
+          `;
       } else {
         // Show card backs for AI players
         cardDiv.className = "card card-back";
@@ -1441,10 +1411,10 @@ function renderPowerCards() {
 
     let iconHTML = GAME.utils.getIcon(card.element);
     cardDiv.innerHTML = `
-          <div class="card-type">${iconHTML} ${card.element}</div>
-          <div class="card-name">${card.name}</div>
-          <div class="card-value">+${card.power}</div>
-        `;
+        <div class="card-type">${iconHTML} ${card.element}</div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-value">+${card.power}</div>
+      `;
 
     container.appendChild(cardDiv);
 
@@ -1521,13 +1491,13 @@ function showdown(singleWinner = false) {
 
     let iconHTML = GAME.utils.getIcon(card.element);
     cardDiv.innerHTML = `
-          <div class="card-type">${iconHTML} ${card.element}</div>
-          <div class="card-name">${card.name}</div>
-          <div class="card-value">${card.value}</div>
-          <div class="bonus-indicator ${bonusClass}">${
+        <div class="card-type">${iconHTML} ${card.element}</div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-value">${card.value}</div>
+        <div class="bonus-indicator ${bonusClass}">${
       bonus >= 0 ? "+" + bonus : bonus
     }</div>
-        `;
+      `;
 
     winnerCards.appendChild(cardDiv);
   });
