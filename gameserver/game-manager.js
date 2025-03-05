@@ -75,21 +75,30 @@ class GameManager {
   }
 
   /**
-   * Get player positions based on dealer position
+   * Get player positions
    * @param {Object} room - Room object
    * @returns {Array} Array of player position objects
    */
   getPlayerPositions(room) {
+    console.log(`[${new Date().toISOString()}] Calculating player positions`);
+
     // Assign poker positions based on dealer
     const positions = ["BTN", "SB", "BB", "UTG"];
-    return room.gameState.players.map((player, index) => {
+
+    // Create position mapping for all players
+    const positionMapping = room.gameState.players.map((player, index) => {
       const posIndex = (index - room.gameState.dealerPosition + 4) % 4;
       return {
         id: player.id,
         name: player.name,
         position: positions[posIndex],
+        tablePosition: index, // Add absolute table position (0-3)
+        isDealer: index === room.gameState.dealerPosition
       };
     });
+
+    console.log(`[${new Date().toISOString()}] Position mapping: ${JSON.stringify(positionMapping)}`);
+    return positionMapping;
   }
 
   /**
