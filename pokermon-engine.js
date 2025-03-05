@@ -365,12 +365,7 @@ function isBettingRoundComplete() {
 
   // Get active players (not folded, not all-in)
   const activePlayers = GAME.state.players.filter((p) => !p.folded && !p.allIn);
-
-  // If there's only one or fewer active players, betting is done
-  if (activePlayers.length <= 1) {
-    console.log("Only one active player remains");
-    return true;
-  }
+  console.log(`Active Players :${activePlayers.map((p) => p.name + " ")}`)
 
   // Special case for big blind's option
   if (GAME.state.currentStage === "preflop" && GAME.state.lastRaiser === null) {
@@ -393,12 +388,12 @@ function isBettingRoundComplete() {
   const allActed = activePlayers.every((p) =>
     GAME.state.playersActedThisRound.includes(p.id)
   );
-  const allMatched = activePlayers.every(
-    (p) => p.bet === GAME.state.currentBet
+  const allMatchedOrAllIn = activePlayers.every(
+    (p) => p.bet === GAME.state.currentBet || p.allIn
   );
 
   console.log(
-    `All active players acted: ${allActed}, All matched bet: ${allMatched}`
+    `All active players acted: ${allActed}, All matched bet: ${allMatchedOrAllIn}`
   );
   console.log(
     `Bet amounts: ${activePlayers
@@ -406,7 +401,7 @@ function isBettingRoundComplete() {
       .join(", ")}`
   );
 
-  return allActed && allMatched;
+  return allActed && allMatchedOrAllIn;
 }
 
 // Begin betting round
@@ -1084,8 +1079,9 @@ function handleAllIn(player) {
   // Calculate all-in amount (current bet plus remaining stack)
   const allInAmount = player.bet + player.stack;
   const actualAllInAmount = player.stack; // What's being added to the pot
+  const isRaise = allInAmount > GAME.state.currentBet;
 
-  if (allInAmount <= GAME.state.currentBet) {
+  if (!isRaise) {
     // All-in as a call (or partial call)
     GAME.state.pot += actualAllInAmount;
     player.bet += actualAllInAmount;
@@ -1110,7 +1106,7 @@ function handleAllIn(player) {
     GAME.state.currentBet = allInAmount;
     GAME.state.pot += actualAllInAmount;
     player.bet = allInAmount;
-    player.totalBet += actualAllInAmount;
+    player.totalBet += allInAmount;
     player.stack = 0;
     player.allIn = true;
 
@@ -1118,6 +1114,14 @@ function handleAllIn(player) {
     GAME.utils.showPlayerAction(player.id, "All-In", allInAmount);
   }
   
+  const raiseAmount = allInAmount - GAME.state.currentBet;
+  const human = GAME.state.players.find((p) => p.isHuman);
+  // Check if this all-in constitutes a "real raise" (meets min raise requirement)
+  if (isRaise) {
+    resetPlayerActionsAfterRaise(human);
+  }
+
+
   return true;
 }
 
@@ -1276,6 +1280,29 @@ function processAIActions() {
       }
     }
   }, 800);
+}
+
+function processAIRaise(aiPlayer, newBetAmount) {
+  // Reset player actions after the AI raises
+  resetPlayerActionsAfterRaise(aiPlayer);
+  
+  // Your existing code to show the action...
+  GAME.utils.addLog(`${aiPlayer.name} raised to $${newBetAmount}.`, "bet");
+  GAME.utils.showPlayerAction(aiPlayer.id, "Raise", newBetAmount);
+}
+
+function processAIAllIn(aiPlayer, allInAmount) {
+  // Only reset action tracking if it's a legitimate raise
+  const isRaise = allInAmount > GAME.state.currentBet;
+  const raiseAmount = allInAmount - GAME.state.currentBet;
+  
+  if (isRaise && raiseAmount >= GAME.state.minRaise) {
+    resetPlayerActionsAfterRaise(aiPlayer);
+  }
+  
+  // Your existing code to show the action...
+  GAME.utils.addLog(`${aiPlayer.name} went all-in with $${allInAmount}!`, "bet");
+  GAME.utils.showPlayerAction(aiPlayer.id, "All-In", allInAmount);
 }
 
 // Highlight active player
@@ -1614,6 +1641,11 @@ function showdown(singleWinner = false) {
 
   // Show restart button
   document.getElementById("restart-button").style.display = "block";
+}
+
+function resetPlayerActionsAfterRaise(raiser) {
+  GAME.state.playersActedThisRound = [raiser.id];
+  console.log(`Raise detected! Resetting player actions. Only ${raiser.name} has acted now.`);
 }
 
 // Export the functions
