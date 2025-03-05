@@ -1,0 +1,6 @@
+        Fire    Water     Earth       Air
+Fire     +4      -4        -2         +2
+Water    -4      +4        +2         -2
+Earth    -2      +2        +4         -4
+Air      +2      -2        -4         +4 
+         

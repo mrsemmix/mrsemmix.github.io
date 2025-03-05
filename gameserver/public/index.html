@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
-    <title>PokerMon</title>
+    <title>PokerMon Multiplayer</title>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
@@ -14,13 +14,15 @@
     />
     <link rel="stylesheet" href="pokermon.css">
     <link rel="stylesheet" href="pokermon-fixes.css">
+    <!-- Add Socket.io client library -->
+    <script src="/socket.io/socket.io.js"></script>
     <!-- Add the script loader to manage dependencies -->
     <script src="index-loader.js"></script>
   </head>
   <body>
     <div class="container">
       <div class="game-title">
-        <h1>PokerMon</h1>
+        <h1>PokerMon Multiplayer</h1>
       </div>
       
       <div class="game-info">
@@ -61,7 +63,7 @@
           <div class="players-container">
             <!-- Player at top -->
             <div class="player" id="player-ai1">
-              <h2>AI 1 <span class="player-position">UTG</span></h2>
+              <h2>Player 1 <span class="player-position">UTG</span></h2>
               <div class="player-info">
                 <div class="player-stack" id="ai1-stack"><i class="fas fa-coins stack-icon"></i> $1000</div>
                 <div class="player-bet" id="ai1-bet-amount"></div>
@@ -74,7 +76,7 @@
             
             <!-- Player at right -->
             <div class="player" id="player-ai2">
-              <h2>AI 2 <span class="player-position">MP</span></h2>
+              <h2>Player 2 <span class="player-position">MP</span></h2>
               <div class="player-info">
                 <div class="player-stack" id="ai2-stack"><i class="fas fa-coins stack-icon"></i> $1000</div>
                 <div class="player-bet" id="ai2-bet-amount"></div>
@@ -87,7 +89,7 @@
             
             <!-- Player at bottom -->
             <div class="player" id="player-ai3">
-              <h2>AI 3 <span class="player-position">CO</span></h2>
+              <h2>Player 3 <span class="player-position">CO</span></h2>
               <div class="player-info">
                 <div class="player-stack" id="ai3-stack"><i class="fas fa-coins stack-icon"></i> $1000</div>
                 <div class="player-bet" id="ai3-bet-amount"></div>
@@ -151,5 +153,8 @@
       
       <div id="message"></div>
     </div>
+
+    <!-- Add the multiplayer client script after the game scripts -->
+    <script src="pokermon-client.js"></script>
   </body>
 </html>

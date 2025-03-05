@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  pokermon-server:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./public:/usr/src/app/public
+    restart: unless-stopped
