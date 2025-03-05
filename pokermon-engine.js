@@ -365,12 +365,7 @@ function isBettingRoundComplete() {
 
   // Get active players (not folded, not all-in)
   const activePlayers = GAME.state.players.filter((p) => !p.folded && !p.allIn);
-
-  // If there's only one or fewer active players, betting is done
-  if (activePlayers.length <= 1) {
-    console.log("Only one active player remains");
-    return true;
-  }
+  console.log(`Active Players :${activePlayers.map((p) => p.name + " ")}`)
 
   // Special case for big blind's option
   if (GAME.state.currentStage === "preflop" && GAME.state.lastRaiser === null) {
@@ -393,12 +388,12 @@ function isBettingRoundComplete() {
   const allActed = activePlayers.every((p) =>
     GAME.state.playersActedThisRound.includes(p.id)
   );
-  const allMatched = activePlayers.every(
-    (p) => p.bet === GAME.state.currentBet
+  const allMatchedOrAllIn = activePlayers.every(
+    (p) => p.bet === GAME.state.currentBet || p.allIn
   );
 
   console.log(
-    `All active players acted: ${allActed}, All matched bet: ${allMatched}`
+    `All active players acted: ${allActed}, All matched bet: ${allMatchedOrAllIn}`
   );
   console.log(
     `Bet amounts: ${activePlayers
@@ -406,7 +401,7 @@ function isBettingRoundComplete() {
       .join(", ")}`
   );
 
-  return allActed && allMatched;
+  return allActed && allMatchedOrAllIn;
 }
 
 // Begin betting round
@@ -831,179 +826,44 @@ function makeFold(player) {
 }
 
 // Process human player action
+/**
+ * Processes a human player's poker action
+ * @param {string} action - The poker action ("Check", "Call", "Bet", "Raise", "Fold", "All-In")
+ * @param {number} betAmount - The amount to bet or raise (if applicable)
+ * @returns {boolean} - Whether the action was successfully processed
+ */
 function processHumanAction(action, betAmount = 0) {
   const human = GAME.state.players.find((p) => p.isHuman);
-
   console.log(`Processing human action: ${action}, amount: ${betAmount}`);
 
-  if (action === "Check") {
-    // Special case for Big Blind in preflop
-    const isBigBlind =
-      GAME.state.currentStage === "preflop" &&
-      document.querySelector(`#player-${human.id} .player-position`)
-        .textContent === "BB";
+  // Return value indicates whether action was successfully processed
+  let actionSuccess = false;
 
-    if (
-      GAME.state.currentBet === 0 ||
-      human.bet === GAME.state.currentBet ||
-      (isBigBlind &&
-        human.bet === GAME.state.currentBet &&
-        !GAME.state.lastRaiser)
-    ) {
-      GAME.utils.addLog("You checked.", "action");
-      GAME.utils.showPlayerAction(human.id, "Check");
-    } else {
-      alert("Cannot check when there's a bet. Choose Call or Fold.");
+  switch (action) {
+    case "Check":
+      actionSuccess = handleCheck(human);
+      break;
+    case "Call":
+      actionSuccess = handleCall(human);
+      break;
+    case "Bet":
+      actionSuccess = handleBet(human, betAmount);
+      break;
+    case "Raise":
+      actionSuccess = handleRaise(human, betAmount);
+      break;
+    case "Fold":
+      actionSuccess = handleFold(human);
+      break;
+    case "All-In":
+      actionSuccess = handleAllIn(human);
+      break;
+    default:
+      console.error(`Unknown action: ${action}`);
       return false;
-    }
-  } else if (action === "Call") {
-    if (GAME.state.currentBet > human.bet) {
-      // Calculate the correct call amount
-      const callAmount = Math.min(
-        GAME.state.currentBet - human.bet,
-        human.stack
-      );
-
-      console.log(
-        `Human calling $${callAmount}. Current bet: ${GAME.state.currentBet}, Player bet: ${human.bet}`
-      );
-
-      human.stack -= callAmount;
-      GAME.state.pot += callAmount;
-      human.bet += callAmount;
-      human.totalBet += callAmount;
-
-      // Check for all-in
-      if (human.stack === 0) {
-        human.allIn = true;
-        GAME.utils.addLog(
-          "You called $" + callAmount + " and are all-in!",
-          "bet"
-        );
-        GAME.utils.showPlayerAction(human.id, "All-In", callAmount);
-      } else {
-        GAME.utils.addLog("You called $" + callAmount + ".", "action");
-        GAME.utils.showPlayerAction(human.id, "Call", callAmount);
-      }
-    } else {
-      alert("Nothing to call.");
-      return false;
-    }
-  } else if (action === "Bet") {
-    // Ensure bets are round numbers
-    betAmount = Math.floor(betAmount);
-
-    if (betAmount < GAME.BIG_BLIND) {
-      alert("Minimum bet is $" + GAME.BIG_BLIND);
-      return false;
-    }
-
-    if (betAmount > human.stack) {
-      alert("You don't have enough chips for this bet.");
-      return false;
-    }
-
-    // Process bet
-    human.stack -= betAmount;
-    GAME.state.pot += betAmount;
-    human.bet = betAmount;
-    human.totalBet += betAmount;
-    GAME.state.currentBet = betAmount;
-    GAME.state.minRaise = GAME.BIG_BLIND;
-    GAME.state.lastRaiser = human;
-
-    GAME.utils.addLog(`You bet $${betAmount}.`, "bet");
-    GAME.utils.showPlayerAction(human.id, "Bet", betAmount);
-  } else if (action === "Raise") {
-    // Ensure raises are round numbers
-    betAmount = Math.floor(betAmount);
-
-    // Validate raise amount
-    if (betAmount <= GAME.state.currentBet) {
-      alert(
-        "Your raise must exceed the current bet of $" + GAME.state.currentBet
-      );
-      return false;
-    }
-
-    const raiseAmount = betAmount - human.bet;
-    if (raiseAmount > human.stack) {
-      alert("You don't have enough chips for this raise.");
-      return false;
-    }
-
-    // Process raise
-    human.stack -= raiseAmount;
-    GAME.state.pot += raiseAmount;
-    GAME.state.lastRaiseAmount = betAmount - GAME.state.currentBet;
-    GAME.state.minRaise = GAME.BIG_BLIND;
-    GAME.state.currentBet = betAmount;
-    human.bet = betAmount;
-    human.totalBet += raiseAmount;
-    GAME.state.lastRaiser = human;
-
-    GAME.utils.addLog(`You raised to $${betAmount}.`, "bet");
-    GAME.utils.showPlayerAction(human.id, "Raise", betAmount);
-  } else if (action === "Fold") {
-    human.folded = true;
-    human.active = false;
-    GAME.utils.addLog("You folded.", "fold");
-    GAME.utils.showPlayerAction(human.id, "Fold");
-
-    // Add folded class to player div
-    document.getElementById(`player-${human.id}`).classList.add("folded");
-
-    // Special check - if only one active player remains after folding
-    const remainingPlayers = GAME.state.players.filter((p) => !p.folded);
-    if (remainingPlayers.length === 1) {
-      // Hide betting controls immediately
-      document.getElementById("betting-controls").classList.remove("visible");
-      GAME.utils.updateStacks();
-      GAME.utils.updatePotDisplay();
-
-      // Advance to showdown with a delay
-      setTimeout(() => {
-        advanceGame();
-      }, 1000);
-      return true;
-    }
-  } else if (action === "All-In") {
-    // All-in is a special case
-    const allInAmount = human.bet + human.stack;
-
-    if (allInAmount <= GAME.state.currentBet) {
-      // All-in as a call (or partial call)
-      const actualAllInAmount = human.stack; // Only add what's in the stack
-      GAME.state.pot += actualAllInAmount;
-      human.bet += actualAllInAmount;
-      human.totalBet += actualAllInAmount;
-      human.stack = 0;
-      human.allIn = true;
-
-      GAME.utils.addLog(`You went all-in with ${allInAmount}!`, "bet");
-      GAME.utils.showPlayerAction(human.id, "All-In", allInAmount);
-    } else {
-      // All-in as a raise
-      const actualRaiseAmount = human.stack;
-
-      if (allInAmount - GAME.state.currentBet >= GAME.BIG_BLIND) {
-        // Valid raise
-        GAME.state.lastRaiseAmount = allInAmount - GAME.state.currentBet;
-        GAME.state.minRaise = GAME.BIG_BLIND;
-        GAME.state.lastRaiser = human;
-      }
-
-      GAME.state.currentBet = allInAmount;
-      GAME.state.pot += actualRaiseAmount;
-      human.bet = allInAmount;
-      human.totalBet += actualRaiseAmount;
-      human.stack = 0;
-      human.allIn = true;
-
-      GAME.utils.addLog(`You went all-in with ${allInAmount}!`, "bet");
-      GAME.utils.showPlayerAction(human.id, "All-In", allInAmount);
-    }
   }
+
+  if (!actionSuccess) return false;
 
   // Update UI
   GAME.utils.updateStacks();
@@ -1015,6 +875,252 @@ function processHumanAction(action, betAmount = 0) {
 
   // Move to next player or next stage
   moveToNextPlayer();
+
+  return true;
+}
+
+/**
+ * Handles the Check action
+ * @param {Object} player - The player object
+ * @returns {boolean} - Whether the check was valid
+ */
+function handleCheck(player) {
+  // Check is valid when:
+  // 1. No current bet on the table
+  // 2. Player has already matched the current bet
+  // 3. Special case: Big Blind in preflop when no one has raised yet
+  const isBigBlind = 
+    GAME.state.currentStage === "preflop" &&
+    document.querySelector(`#player-${player.id} .player-position`).textContent === "BB";
+  
+  const canCheck = 
+    GAME.state.currentBet === 0 || 
+    player.bet === GAME.state.currentBet ||
+    (isBigBlind && player.bet === GAME.state.currentBet && !GAME.state.lastRaiser);
+
+  if (!canCheck) {
+    alert("Cannot check when there's a bet. Choose Call or Fold.");
+    return false;
+  }
+
+  GAME.utils.addLog("You checked.", "action");
+  GAME.utils.showPlayerAction(player.id, "Check");
+  return true;
+}
+
+/**
+ * Handles the Call action
+ * @param {Object} player - The player object
+ * @returns {boolean} - Whether the call was valid
+ */
+function handleCall(player) {
+  if (GAME.state.currentBet <= player.bet) {
+    alert("Nothing to call.");
+    return false;
+  }
+
+  // Calculate the correct call amount (limited by player's stack)
+  const callAmount = Math.min(
+    GAME.state.currentBet - player.bet,
+    player.stack
+  );
+
+  console.log(
+    `Human calling $${callAmount}. Current bet: ${GAME.state.currentBet}, Player bet: ${player.bet}`
+  );
+
+  player.stack -= callAmount;
+  GAME.state.pot += callAmount;
+  player.bet += callAmount;
+  player.totalBet += callAmount;
+
+  // Check for all-in
+  if (player.stack === 0) {
+    player.allIn = true;
+    GAME.utils.addLog(
+      "You called $" + callAmount + " and are all-in!",
+      "bet"
+    );
+    GAME.utils.showPlayerAction(player.id, "All-In", callAmount);
+  } else {
+    GAME.utils.addLog("You called $" + callAmount + ".", "action");
+    GAME.utils.showPlayerAction(player.id, "Call", callAmount);
+  }
+  
+  return true;
+}
+
+/**
+ * Handles the Bet action (first bet in a betting round)
+ * @param {Object} player - The player object
+ * @param {number} betAmount - The amount to bet
+ * @returns {boolean} - Whether the bet was valid
+ */
+function handleBet(player, betAmount) {
+  // Ensure bets are whole numbers
+  betAmount = Math.floor(betAmount);
+
+  // Validate bet amount
+  if (betAmount < GAME.BIG_BLIND) {
+    alert("Minimum bet is $" + GAME.BIG_BLIND);
+    return false;
+  }
+
+  if (betAmount > player.stack) {
+    alert("You don't have enough chips for this bet.");
+    return false;
+  }
+
+  // Process bet
+  player.stack -= betAmount;
+  GAME.state.pot += betAmount;
+  player.bet = betAmount;
+  player.totalBet += betAmount;
+  GAME.state.currentBet = betAmount;
+  
+  // The minimum raise is now the size of this bet
+  GAME.state.minRaise = betAmount;
+  GAME.state.lastRaiser = player;
+
+  GAME.utils.addLog(`You bet $${betAmount}.`, "bet");
+  GAME.utils.showPlayerAction(player.id, "Bet", betAmount);
+  
+  return true;
+}
+
+/**
+ * Handles the Raise action
+ * @param {Object} player - The player object
+ * @param {number} betAmount - The total amount to bet (current bet + raise)
+ * @returns {boolean} - Whether the raise was valid
+ */
+function handleRaise(player, betAmount) {
+  // Ensure raises are whole numbers
+  betAmount = Math.floor(betAmount);
+
+  // Calculate the raise size (how much is being added to the current bet)
+  const raiseSize = betAmount - GAME.state.currentBet;
+  const callAmount = GAME.state.currentBet - player.bet;
+  const totalRequired = callAmount + raiseSize;
+  
+  // Validate raise amount - must be at least the minimum raise
+  if (betAmount <= GAME.state.currentBet) {
+    alert(
+      "Your raise must exceed the current bet of $" + GAME.state.currentBet
+    );
+    return false;
+  }
+  
+  if (raiseSize < GAME.state.minRaise) {
+    alert(
+      `Your raise must be at least $${GAME.state.minRaise} more than the current bet.`
+    );
+    return false;
+  }
+
+  if (totalRequired > player.stack) {
+    alert("You don't have enough chips for this raise.");
+    return false;
+  }
+
+  // Process raise
+  player.stack -= totalRequired;
+  GAME.state.pot += totalRequired;
+  GAME.state.lastRaiseAmount = raiseSize;
+  GAME.state.minRaise = raiseSize; // Next raise must be at least this size
+  GAME.state.currentBet = betAmount;
+  player.bet = betAmount;
+  player.totalBet += totalRequired;
+  GAME.state.lastRaiser = player;
+
+  GAME.utils.addLog(`You raised to $${betAmount}.`, "bet");
+  GAME.utils.showPlayerAction(player.id, "Raise", betAmount);
+  
+  return true;
+}
+
+/**
+ * Handles the Fold action
+ * @param {Object} player - The player object
+ * @returns {boolean} - Whether the fold was valid
+ */
+function handleFold(player) {
+  player.folded = true;
+  player.active = false;
+  GAME.utils.addLog("You folded.", "fold");
+  GAME.utils.showPlayerAction(player.id, "Fold");
+
+  // Add folded class to player div
+  document.getElementById(`player-${player.id}`).classList.add("folded");
+
+  // Check if only one active player remains after folding
+  const remainingPlayers = GAME.state.players.filter((p) => !p.folded);
+  if (remainingPlayers.length === 1) {
+    // Hide betting controls immediately
+    document.getElementById("betting-controls").classList.remove("visible");
+    GAME.utils.updateStacks();
+    GAME.utils.updatePotDisplay();
+
+    // Advance to showdown with a delay
+    setTimeout(() => {
+      advanceGame();
+    }, 1000);
+  }
+  
+  return true;
+}
+
+/**
+ * Handles the All-In action
+ * @param {Object} player - The player object
+ * @returns {boolean} - Always returns true as all-in is always valid
+ */
+function handleAllIn(player) {
+  // Calculate all-in amount (current bet plus remaining stack)
+  const allInAmount = player.bet + player.stack;
+  const actualAllInAmount = player.stack; // What's being added to the pot
+  const isRaise = allInAmount > GAME.state.currentBet;
+
+  if (!isRaise) {
+    // All-in as a call (or partial call)
+    GAME.state.pot += actualAllInAmount;
+    player.bet += actualAllInAmount;
+    player.totalBet += actualAllInAmount;
+    player.stack = 0;
+    player.allIn = true;
+
+    GAME.utils.addLog(`You went all-in with $${allInAmount}!`, "bet");
+    GAME.utils.showPlayerAction(player.id, "All-In", allInAmount);
+  } else {
+    // All-in as a raise
+    const raiseAmount = allInAmount - GAME.state.currentBet;
+    
+    // Check if this all-in constitutes a "real raise" (meets min raise requirement)
+    // If it's a real raise, it reopens betting
+    if (raiseAmount >= GAME.state.minRaise) {
+      GAME.state.lastRaiseAmount = raiseAmount;
+      GAME.state.minRaise = raiseAmount; // Next raise must be at least this size
+      GAME.state.lastRaiser = player;
+    }
+
+    GAME.state.currentBet = allInAmount;
+    GAME.state.pot += actualAllInAmount;
+    player.bet = allInAmount;
+    player.totalBet += allInAmount;
+    player.stack = 0;
+    player.allIn = true;
+
+    GAME.utils.addLog(`You went all-in with $${allInAmount}!`, "bet");
+    GAME.utils.showPlayerAction(player.id, "All-In", allInAmount);
+  }
+  
+  const raiseAmount = allInAmount - GAME.state.currentBet;
+  const human = GAME.state.players.find((p) => p.isHuman);
+  // Check if this all-in constitutes a "real raise" (meets min raise requirement)
+  if (isRaise) {
+    resetPlayerActionsAfterRaise(human);
+  }
+
 
   return true;
 }
@@ -1174,6 +1280,29 @@ function processAIActions() {
       }
     }
   }, 800);
+}
+
+function processAIRaise(aiPlayer, newBetAmount) {
+  // Reset player actions after the AI raises
+  resetPlayerActionsAfterRaise(aiPlayer);
+  
+  // Your existing code to show the action...
+  GAME.utils.addLog(`${aiPlayer.name} raised to $${newBetAmount}.`, "bet");
+  GAME.utils.showPlayerAction(aiPlayer.id, "Raise", newBetAmount);
+}
+
+function processAIAllIn(aiPlayer, allInAmount) {
+  // Only reset action tracking if it's a legitimate raise
+  const isRaise = allInAmount > GAME.state.currentBet;
+  const raiseAmount = allInAmount - GAME.state.currentBet;
+  
+  if (isRaise && raiseAmount >= GAME.state.minRaise) {
+    resetPlayerActionsAfterRaise(aiPlayer);
+  }
+  
+  // Your existing code to show the action...
+  GAME.utils.addLog(`${aiPlayer.name} went all-in with $${allInAmount}!`, "bet");
+  GAME.utils.showPlayerAction(aiPlayer.id, "All-In", allInAmount);
 }
 
 // Highlight active player
@@ -1512,6 +1641,11 @@ function showdown(singleWinner = false) {
 
   // Show restart button
   document.getElementById("restart-button").style.display = "block";
+}
+
+function resetPlayerActionsAfterRaise(raiser) {
+  GAME.state.playersActedThisRound = [raiser.id];
+  console.log(`Raise detected! Resetting player actions. Only ${raiser.name} has acted now.`);
 }
 
 // Export the functions

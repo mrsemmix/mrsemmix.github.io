@@ -30,17 +30,20 @@ function createDeck() {
 
 // Get icon for element
 function getIcon(element) {
-  if (element === "Fire")
-    return '<i class="fas fa-fire fa-icon" style="color: #FF4500;"></i>';
-  if (element === "Water")
-    return '<i class="fas fa-tint fa-icon" style="color: #1E90FF;"></i>';
-  if (element === "Earth")
-    return '<i class="fas fa-mountain fa-icon" style="color: #9ACD32;"></i>';
-  if (element === "Air")
-    return '<i class="fas fa-wind fa-icon" style="color: #ADD8E6;"></i>';
-  if (element === "Electric")
-    return '<i class="fas fa-bolt fa-icon" style="color: #FFD700;"></i>';
-  return "";
+  switch (element) {
+    case "Fire":
+      return '<i class="fas fa-fire fa-icon" style="color: #FF4500;"></i>';
+    case "Water":
+      return '<i class="fas fa-tint fa-icon" style="color: #1E90FF;"></i>';
+    case "Earth":
+      return '<i class="fas fa-mountain fa-icon" style="color: #9ACD32;"></i>';
+    case "Air":
+      return '<i class="fas fa-wind fa-icon" style="color: #ADD8E6;"></i>';
+    // case "Electric":
+    //   return '<i class="fas fa-bolt fa-icon" style="color: #FFD700;"></i>';
+    default:
+      return "";
+  }
 }
 
 // Get monster name based on element and value
@@ -50,37 +53,34 @@ function getMonsterName(element, value) {
 
 // Get power card name
 function getPowerName(element, value) {
-  if (element === "Fire")
-    return value === 1 ? "Ember" : value === 5 ? "Inferno" : "Flame Burst";
-  if (element === "Water")
-    return value === 1 ? "Splash" : value === 5 ? "Tsunami" : "Aqua Strike";
-  if (element === "Earth")
-    return value === 1 ? "Pebble Toss" : value === 5 ? "Quake" : "Rock Smash";
-  if (element === "Air")
-    return value === 1 ? "Gust" : value === 5 ? "Hurricane" : "Wind Slash";
-  if (element === "Electric")
-    return value === 1 ? "Spark" : value === 5 ? "Thunder" : "Volt Surge";
-  return element + " Power";
+  const elementPowers = GAME.POWER_NAMES[element];
+  if (elementPowers) {
+    return elementPowers[value] || element + " N/A";
+  }
+  return element;
 }
 
 // Get arena name based on element
 function getArenaName(element) {
-  if (element === "Fire") return "Volcano Arena";
-  if (element === "Water") return "Oceanic Arena";
-  if (element === "Earth") return "Forest Arena";
-  if (element === "Air") return "Sky Arena";
-  if (element === "Electric") return "Lightning Arena";
-  return element + " Arena";
+  const rand = Math.floor(Math.random() * 2);
+  return GAME.ARENA_NAMES[element][rand];
 }
-
 // Get color for element
 function getElementColor(element) {
-  if (element === "Fire") return "#FF4500";
-  if (element === "Water") return "#1E90FF";
-  if (element === "Earth") return "#9ACD32";
-  if (element === "Air") return "#ADD8E6";
-  if (element === "Electric") return "#FFD700";
-  return "#fff";
+  switch (element) {
+    case "Fire":
+      return "#FF4500";
+    case "Water":
+      return "#1E90FF";
+    case "Earth":
+      return "#9ACD32";
+    case "Air":
+      return "#ADD8E6";
+    // case "Electric":
+    //   return "#FFD700";
+    default:
+      return "#fff";
+  }
 }
 
 // Add message to game log
@@ -196,91 +196,49 @@ function positionBlindButtons() {
   const positions = {
     human: {
       // Left player
-      dealer: { left: "120px", top: "40%" },
-      sb: { left: "120px", top: "55%" },
-      bb: { left: "120px", top: "70%" },
+      dealer: { left: "105px", top: "66%" },
+      sb: { left: "105px", top: "66%" },
+      bb: { left: "105px", top: "66%" },
     },
     ai1: {
       // Top player
-      dealer: { left: "35%", top: "100px" },
-      sb: { left: "50%", top: "100px" },
-      bb: { left: "65%", top: "100px" },
+      dealer: { left: "59%", top: "75px" },
+      sb: { left: "59%", top: "75px" },
+      bb: { left: "59%", top: "75px" },
     },
     ai2: {
       // Right player
-      dealer: { right: "120px", top: "40%" },
-      sb: { right: "120px", top: "55%" },
-      bb: { right: "120px", top: "70%" },
+      dealer: { right: "108px", top: "65%" },
+      sb: { right: "108px", top: "65%" },
+      bb: { right: "108px", top: "65%" },
     },
     ai3: {
       // Bottom player
-      dealer: { left: "35%", bottom: "100px" },
-      sb: { left: "50%", bottom: "100px" },
-      bb: { left: "65%", bottom: "100px" },
+      dealer: { left: "37.5%", bottom: "75px" },
+      sb: { left: "37.5%", bottom: "75px" },
+      bb: { left: "37.5%", bottom: "75px" },
     },
   };
 
-  // Map player indices to position keys
+  // Map player indices to position keys.
   const playerKeys = ["human", "ai1", "ai2", "ai3"];
-
-  // Determine which player has which position
   const dealerPlayerKey = playerKeys[GAME.state.dealerPosition];
   const sbPlayerKey = playerKeys[(GAME.state.dealerPosition + 1) % 4];
   const bbPlayerKey = playerKeys[(GAME.state.dealerPosition + 2) % 4];
 
-  // Apply positions
-  // Dealer button
-  if (positions[dealerPlayerKey].dealer.left)
-    dealerBtn.style.left = positions[dealerPlayerKey].dealer.left;
-  else dealerBtn.style.left = "auto";
+  // Helper to assign CSS properties with a default of "auto".
+  function applyStyles(btn, styleObj) {
+    ["left", "right", "top", "bottom"].forEach((prop) => {
+      btn.style[prop] = styleObj[prop] || "auto";
+    });
+  }
 
-  if (positions[dealerPlayerKey].dealer.right)
-    dealerBtn.style.right = positions[dealerPlayerKey].dealer.right;
-  else dealerBtn.style.right = "auto";
+  // Apply the positions.
+  applyStyles(dealerBtn, positions[dealerPlayerKey].dealer);
+  applyStyles(sbBtn, positions[sbPlayerKey].sb);
+  applyStyles(bbBtn, positions[bbPlayerKey].bb);
 
-  if (positions[dealerPlayerKey].dealer.top)
-    dealerBtn.style.top = positions[dealerPlayerKey].dealer.top;
-  else dealerBtn.style.top = "auto";
-
-  if (positions[dealerPlayerKey].dealer.bottom)
-    dealerBtn.style.bottom = positions[dealerPlayerKey].dealer.bottom;
-  else dealerBtn.style.bottom = "auto";
-
-  // Small blind button
-  if (positions[sbPlayerKey].sb.left)
-    sbBtn.style.left = positions[sbPlayerKey].sb.left;
-  else sbBtn.style.left = "auto";
-
-  if (positions[sbPlayerKey].sb.right)
-    sbBtn.style.right = positions[sbPlayerKey].sb.right;
-  else sbBtn.style.right = "auto";
-
-  if (positions[sbPlayerKey].sb.top)
-    sbBtn.style.top = positions[sbPlayerKey].sb.top;
-  else sbBtn.style.top = "auto";
-
-  if (positions[sbPlayerKey].sb.bottom)
-    sbBtn.style.bottom = positions[sbPlayerKey].sb.bottom;
-  else sbBtn.style.bottom = "auto";
-
-  // Big blind button
-  if (positions[bbPlayerKey].bb.left)
-    bbBtn.style.left = positions[bbPlayerKey].bb.left;
-  else bbBtn.style.left = "auto";
-
-  if (positions[bbPlayerKey].bb.right)
-    bbBtn.style.right = positions[bbPlayerKey].bb.right;
-  else bbBtn.style.right = "auto";
-
-  if (positions[bbPlayerKey].bb.top)
-    bbBtn.style.top = positions[bbPlayerKey].bb.top;
-  else bbBtn.style.top = "auto";
-
-  if (positions[bbPlayerKey].bb.bottom)
-    bbBtn.style.bottom = positions[bbPlayerKey].bb.bottom;
-  else bbBtn.style.bottom = "auto";
-
-  // Add tooltips to clarify
+  // Set tooltips.
   dealerBtn.title = "Dealer Button";
   sbBtn.title = "Small Blind: $" + GAME.SMALL_BLIND;
   bbBtn.title = "Big Blind: $" + GAME.BIG_BLIND;
@@ -292,6 +250,8 @@ function showPlayerAction(playerId, action, amount = 0) {
   actionDiv.className = "player-action " + action.toLowerCase();
 
   if (
+    action === "Check" ||
+    action === "Fold" ||
     action === "Bet" ||
     action === "Raise" ||
     action === "Call" ||
@@ -329,26 +289,8 @@ function updateGameStage(stage) {
   const dots = document.querySelectorAll(".stage-dot");
   dots.forEach((dot) => dot.classList.remove("active"));
 
-  let activeIndex = 0;
-  switch (stage) {
-    case "preflop":
-      activeIndex = 0;
-      break;
-    case "arena":
-      activeIndex = 1;
-      break;
-    case "power1":
-      activeIndex = 2;
-      break;
-    case "power2":
-      activeIndex = 3;
-      break;
-    case "power3":
-      activeIndex = 4;
-      break;
-  }
-
-  if (activeIndex < dots.length) {
+  const activeIndex = GAME_STAGES.indexOf(stage);
+  if (activeIndex !== -1 && activeIndex < dots.length) {
     dots[activeIndex].classList.add("active");
   }
 }
@@ -424,62 +366,46 @@ function calculateCardValue(card) {
 // Check if elements contradict each other
 function isContradictingElement(element1, element2) {
   // Using the bonusMatrix, contradicting elements have -2 relationship
-  return GAME.BONUS_MATRIX[element1][element2] === -2;
+  return GAME.BONUS_MATRIX[element1][element2] === -4;
 }
 
-// Update player position and blind status display
 function updatePositionLabels() {
-  // First, clear all position labels
+  // Clear all position labels
   GAME.state.players.forEach((player) => {
-    const positionEl = document.querySelector(
+    const posEl = document.querySelector(
       `#player-${player.id} .player-position`
     );
-    if (positionEl) {
-      positionEl.textContent = ""; // Clear all position text
-      positionEl.className = "player-position"; // Reset all classes
+    if (posEl) {
+      posEl.textContent = "";
+      posEl.className = "player-position";
     }
   });
 
-  // Determine which positions each player has
-  const dealerPlayerIndex = GAME.state.dealerPosition;
-  const sbPlayerIndex = (GAME.state.dealerPosition + 1) % 4;
-  const bbPlayerIndex = (GAME.state.dealerPosition + 2) % 4;
-  const utgPlayerIndex = (GAME.state.dealerPosition + 3) % 4;
+  // Define the ordered positions starting from the dealer position.
+  // For a 4-player game, the order is: Dealer (BTN), Small Blind (SB), Big Blind (BB), UTG.
+  const positions = [
+    { label: "BTN", className: "player-position dealer" },
+    { label: "SB", className: "player-position small-blind" },
+    { label: "BB", className: "player-position big-blind" },
+    { label: "UTG", className: "player-position" },
+  ];
 
-  // Apply position tags with specific styling
-  const dealerPositionEl = document.querySelector(
-    `#player-${GAME.state.players[dealerPlayerIndex].id} .player-position`
-  );
-  if (dealerPositionEl) {
-    dealerPositionEl.textContent = "BTN";
-    dealerPositionEl.className = "player-position dealer";
-  }
+  const dealerPos = GAME.state.dealerPosition; // assuming 0-3
+  const numPlayers = GAME.state.players.length;
 
-  const sbPositionEl = document.querySelector(
-    `#player-${GAME.state.players[sbPlayerIndex].id} .player-position`
-  );
-  if (sbPositionEl) {
-    sbPositionEl.textContent = "SB";
-    sbPositionEl.className = "player-position small-blind";
-  }
+  // Apply the position tags based on cyclic order.
+  positions.forEach((pos, i) => {
+    const playerIndex = (dealerPos + i) % numPlayers;
+    const posEl = document.querySelector(
+      `#player-${GAME.state.players[playerIndex].id} .player-position`
+    );
+    if (posEl) {
+      posEl.textContent = pos.label;
+      posEl.className = pos.className;
+    }
+  });
 
-  const bbPositionEl = document.querySelector(
-    `#player-${GAME.state.players[bbPlayerIndex].id} .player-position`
-  );
-  if (bbPositionEl) {
-    bbPositionEl.textContent = "BB";
-    bbPositionEl.className = "player-position big-blind";
-  }
-
-  const utgPositionEl = document.querySelector(
-    `#player-${GAME.state.players[utgPlayerIndex].id} .player-position`
-  );
-  if (utgPositionEl) {
-    utgPositionEl.textContent = "UTG";
-    utgPositionEl.className = "player-position";
-  }
-
-  // Also update the buttons positioning
+  // Update blind button positions
   positionBlindButtons();
 }
 
@@ -526,7 +452,7 @@ function getPlayerPosition(player) {
 // Determine hand tier (high/medium/low/weak)
 function calculateHandTier(handValue) {
   // Define base expected values for different stages
-  let maxExpectedValue;
+  let maxExpectedValue = 26;
 
   if (GAME.state.currentStage === "preflop") {
     maxExpectedValue = 26; // Two cards, max 13 each
@@ -536,14 +462,12 @@ function calculateHandTier(handValue) {
     // Add 5 points per power card
     const powerCount = parseInt(GAME.state.currentStage.charAt(5)) || 0;
     maxExpectedValue = 34 + powerCount * 5;
-  } else {
-    maxExpectedValue = 26; // Default
   }
 
   // Define strict tier thresholds (like blackjack's rules)
-  const weakThreshold = maxExpectedValue * 0.4; // Bottom 40%
-  const averageThreshold = maxExpectedValue * 0.6; // 40-60%
-  const strongThreshold = maxExpectedValue * 0.75; // 60-75%
+  const weakThreshold = maxExpectedValue * 0.4; // Bottom 30%
+  const averageThreshold = maxExpectedValue * 0.6; // 30-50%
+  const strongThreshold = maxExpectedValue * 0.75; // 50-75%
   // Premium is top 25%
 
   // Classify hand into tier
