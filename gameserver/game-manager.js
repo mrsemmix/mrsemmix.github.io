@@ -81,10 +81,10 @@ class GameManager {
    */
   getPlayerPositions(room) {
     console.log(`[${new Date().toISOString()}] Calculating player positions`);
-
+  
     // Assign poker positions based on dealer
     const positions = ["BTN", "SB", "BB", "UTG"];
-
+    
     // Create position mapping for all players
     const positionMapping = room.gameState.players.map((player, index) => {
       const posIndex = (index - room.gameState.dealerPosition + 4) % 4;
@@ -93,10 +93,12 @@ class GameManager {
         name: player.name,
         position: positions[posIndex],
         tablePosition: index, // Add absolute table position (0-3)
-        isDealer: index === room.gameState.dealerPosition
+        isDealer: index === room.gameState.dealerPosition,
+        isSB: posIndex === 1,
+        isBB: posIndex === 2
       };
     });
-
+  
     console.log(`[${new Date().toISOString()}] Position mapping: ${JSON.stringify(positionMapping)}`);
     return positionMapping;
   }
@@ -318,18 +320,23 @@ class GameManager {
   getGameStateForBroadcast(roomCode) {
     const room = this.roomManager.getRoom(roomCode);
     if (!room || !room.gameState) return null;
-
+  
+    // Get player positions for the broadcast
+    const playerPositions = this.getPlayerPositions(room);
+  
     return {
       players: room.gameState.players.map((p) => ({
         id: p.id,
         name: p.name,
         stack: p.stack,
         bet: p.bet,
+        totalBet: p.totalBet || 0,
         folded: p.folded,
         allIn: p.allIn,
         active: p.active,
         hasCards: p.hand.length > 0,
       })),
+      playerPositions: playerPositions, // Add this to every state update
       arenaCard: room.gameState.arenaCard,
       powerCards: room.gameState.powerCards,
       currentStage: room.gameState.currentStage,
@@ -337,6 +344,7 @@ class GameManager {
       activePlayerIndex: room.gameState.activePlayerIndex,
       pot: room.gameState.pot,
       currentBet: room.gameState.currentBet,
+      minRaise: room.gameState.minRaise
     };
   }
 

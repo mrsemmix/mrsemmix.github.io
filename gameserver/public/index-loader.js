@@ -1,5 +1,5 @@
 // Enhanced script loader for PokerMon with better error handling
-console.log("Enhanced loader script running");
+console.log("Enhanced loader script running for thin client");
 
 // Flag to prevent multiple initializations
 window.pokermonInitialized = false;
@@ -13,15 +13,14 @@ if (document.readyState === "loading") {
 }
 
 function initLoader() {
-  console.log("DOM loaded, starting enhanced script loader");
+  console.log("DOM loaded, starting thin client loader");
 
+  // Only load core and utils, not engine or main
   const scripts = [
-    "pokermon-core.js",
-    "pokermon-utils.js",
-    "pokermon-engine.js",
-    "pokermon-main.js",
-    // "diagnostic-fix.js", // Add diagnostic script
-    // "pokermon-fixes.js",
+    "pokermon-core.js",    // Load this for constants and state structure
+    "pokermon-utils.js",   // Load this for utility functions
+    // "pokermon-engine.js", // Don't load this - contains game logic
+    // "pokermon-main.js",   // Don't load this - contains game initialization
   ];
 
   // Keep track of loaded scripts to prevent double loading
@@ -29,21 +28,30 @@ function initLoader() {
 
   function loadScript(index) {
     if (index >= scripts.length) {
-      console.log("All scripts loaded successfully");
+      console.log("Core scripts loaded, loading thin client...");
 
-      // Extra check to directly verify GAME object
-      setTimeout(() => {
-        if (window.GAME) {
-          console.log("GAME object verified after all scripts loaded:", {
-            hasElements: !!window.GAME.ELEMENTS,
-            hasUtils: !!window.GAME.utils,
-            hasEngine: !!window.GAME.engine,
-            hasState: !!window.GAME.state,
-          });
-        } else {
-          console.error("GAME object missing after all scripts loaded!");
+      // After core scripts, load the thin client
+      const thinClientScript = document.createElement("script");
+      thinClientScript.src = "pokermon-thin-client.js";
+
+      thinClientScript.onload = function () {
+        console.log("Thin client loaded successfully");
+
+        // Create empty game engine object to prevent errors
+        if (window.GAME && !window.GAME.engine) {
+          window.GAME.engine = {
+            renderHands: function () { console.log("Placeholder renderHands called"); },
+            renderPowerCards: function () { console.log("Placeholder renderPowerCards called"); }
+          };
         }
-      }, 500);
+      };
+
+      thinClientScript.onerror = function (e) {
+        console.error("Failed to load thin client:", e);
+        alert("Error loading thin client - check console for details");
+      };
+
+      document.body.appendChild(thinClientScript);
       return;
     }
 
@@ -54,18 +62,13 @@ function initLoader() {
       return;
     }
 
-    console.log(`Attempting to load: ${scripts[index]}`);
+    console.log(`Loading: ${scripts[index]}`);
     const script = document.createElement("script");
     script.src = scripts[index];
 
     script.onload = function () {
       console.log(`Successfully loaded: ${scripts[index]}`);
       loadedScripts.add(scripts[index]);
-
-      // Verify GAME object availability after core is loaded
-      if (scripts[index] === "pokermon-core.js" && !window.GAME) {
-        console.error("GAME object not created by core.js!");
-      }
 
       // Continue loading next script
       loadScript(index + 1);
@@ -78,7 +81,7 @@ function initLoader() {
 
     document.body.appendChild(script);
   }
-  
+
   // Start loading scripts
   loadScript(0);
 }

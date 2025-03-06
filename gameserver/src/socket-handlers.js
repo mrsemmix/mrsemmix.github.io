@@ -129,6 +129,9 @@ function initialize(io, roomManager) {
         // Broadcast action to all players
         io.to(currentPlayer.roomCode).emit('playerAction', result.action);
         
+        // Add this line to broadcast state after every action
+        broadcastGameState(currentPlayer.roomCode, io, gameManager);
+        
         // Move to next player or next stage
         const nextResult = gameManager.moveToNextPlayerOrStage(currentPlayer.roomCode);
         
@@ -166,7 +169,7 @@ function initialize(io, roomManager) {
               return;
             }
             
-            // Announce next player's turn
+            // Always use room broadcast for player turn to ensure consistency
             io.to(currentPlayer.roomCode).emit('playerTurn', {
               playerId: nextResult.nextPlayer.id,
               playerName: nextResult.nextPlayer.name,
@@ -175,7 +178,7 @@ function initialize(io, roomManager) {
               pot: nextResult.gameState.pot
             });
           } else {
-            // Announce next player's turn (same stage)
+            // Announce next player's turn (same stage) - using room broadcast
             console.log(`${timestamp()} Next player's turn: ${nextResult.nextPlayer.name}`);
             io.to(currentPlayer.roomCode).emit('playerTurn', {
               playerId: nextResult.nextPlayer.id,
@@ -196,6 +199,15 @@ function initialize(io, roomManager) {
     socket.on('getRooms', (callback) => {
       console.log(`${timestamp()} GET_ROOMS: ${socket.id}`);
       callback(roomManager.getAvailableRooms());
+    });
+
+    socket.on('getGameState', (callback) => {
+      if (currentPlayer.roomCode) {
+        const state = gameManager.getPlayerGameState(currentPlayer.roomCode, socket.id);
+        callback(state);
+      } else {
+        callback(null);
+      }
     });
     
     // Handle player leaving
@@ -271,19 +283,18 @@ function startGame(roomCode, io, gameManager) {
   const result = gameManager.startGame(roomCode);
   
   if (result.success) {
-    // Broadcast game start
+    // Broadcast game start with player positions
     io.to(roomCode).emit('gameStarted', {
       message: 'Game has started!',
       playerPositions: result.playerPositions,
-      autoStart: true // Add a flag to indicate this is an automatic start
+      autoStart: true
     });
     
     // Deal cards
     const dealtCards = gameManager.dealInitialCards(roomCode);
     
     if (dealtCards.success) {
-      console.log(`${timestamp()} Cards dealt to ${dealtCards.players.length} players`);
-      console.log(`${timestamp()} Player names: ${JSON.stringify(dealtCards.players.map(p => ({id: p.id, name: p.name})))}`);
+      console.log(`${timestamp()} Cards dealt`);
       
       // Send cards to each player
       dealtCards.players.forEach(p => {
@@ -293,28 +304,16 @@ function startGame(roomCode, io, gameManager) {
         });
       });
       
-      // Get blinds info
-      const room = gameManager.roomManager.getRoom(roomCode);
-      console.log(`${timestamp()} Blinds posted in room ${roomCode}`);
-      
       // Broadcast blinds posted
-      io.to(roomCode).emit('blindsPosted', {
-        smallBlind: {
-          player: room.gameState.players[(room.gameState.dealerPosition + 1) % room.gameState.players.length].name,
-          amount: room.gameState.players[(room.gameState.dealerPosition + 1) % room.gameState.players.length].bet
-        },
-        bigBlind: {
-          player: room.gameState.players[(room.gameState.dealerPosition + 2) % room.gameState.players.length].name,
-          amount: room.gameState.players[(room.gameState.dealerPosition + 2) % room.gameState.players.length].bet
-        }
-      });
+      const blindsInfo = gameManager.postBlinds(roomCode);
+      io.to(roomCode).emit('blindsPosted', blindsInfo);
       
-      // Broadcast game state
+      // Broadcast full game state to everyone
       broadcastGameState(roomCode, io, gameManager);
       
       // Announce first player's turn
+      const room = gameManager.roomManager.getRoom(roomCode);
       const activePlayer = room.gameState.players[room.gameState.activePlayerIndex];
-      console.log(`${timestamp()} First player to act: ${activePlayer.name}`);
       
       io.to(roomCode).emit('playerTurn', {
         playerId: activePlayer.id,
@@ -333,6 +332,7 @@ function startGame(roomCode, io, gameManager) {
  * @param {Object} io - Socket.io instance
  * @param {Object} gameManager - Game manager instance
  */
+// At the end of the broadcastGameState function in socket-handlers.js
 function broadcastGameState(roomCode, io, gameManager) {
   const room = gameManager.roomManager.getRoom(roomCode);
   if (!room || !room.gameState) return;
@@ -352,7 +352,7 @@ function broadcastGameState(roomCode, io, gameManager) {
       name: p.name
     }));
     
-    // Add player positions to game state
+    // Always include player positions in every state update
     playerState.playerPositions = playerPositions;
     
     io.to(player.id).emit('gameStateUpdate', playerState);

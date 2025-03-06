@@ -14,6 +14,7 @@
   // Reference to original game objects
   const originalInitGame = window.GAME?.engine?.initGame;
   const originalProcessHumanAction = window.GAME?.engine?.processHumanAction;
+  let isMultiplayerGame = true;
 
   // DOM elements for multiplayer UI
   let multiplayerUI;
@@ -30,6 +31,48 @@
 
     // Override game functions
     overrideGameFunctions();
+
+    disableLocalGameLogic()
+  }
+
+  function disableLocalGameLogic() {
+    // Save original functions for reference
+    const originalFunctions = {
+      initGame: window.GAME?.engine?.initGame,
+      processHumanAction: window.GAME?.engine?.processHumanAction,
+      moveToNextPlayer: window.GAME?.engine?.moveToNextPlayer,
+      advanceGame: window.GAME?.engine?.advanceGame,
+      beginBettingRound: window.GAME?.engine?.beginBettingRound,
+      showdown: window.GAME?.engine?.showdown
+    };
+
+    // Replace game logic functions with stubs that do nothing
+    if (window.GAME && window.GAME.engine) {
+      // Only override game flow functions, not rendering functions
+      window.GAME.engine.moveToNextPlayer = function () {
+        console.log("Local moveToNextPlayer prevented - waiting for server");
+        return false;
+      };
+
+      window.GAME.engine.advanceGame = function () {
+        console.log("Local advanceGame prevented - waiting for server");
+        return false;
+      };
+
+      window.GAME.engine.beginBettingRound = function () {
+        console.log("Local beginBettingRound prevented - waiting for server");
+        return false;
+      };
+
+      window.GAME.engine.showdown = function () {
+        console.log("Local showdown prevented - waiting for server");
+        // Still allow local showdown rendering as server will trigger this
+        if (originalFunctions.showdown) {
+          // But don't modify state
+        }
+        return false;
+      };
+    }
   }
 
   // Create UI for multiplayer
@@ -301,9 +344,29 @@
       refreshRoomList();
     });
 
-    socket.on("disconnect", () => {
-      console.log("Disconnected from server");
-      showMessage("Disconnected from server. Please refresh the page.");
+    // Add reconnection and state recovery
+    socket.on('disconnect', () => {
+      console.log("Socket disconnected, attempting to reconnect...");
+      showMessage("Connection lost. Reconnecting...");
+    });
+
+    socket.on('reconnect', () => {
+      console.log("Reconnected to server!");
+      showMessage("Reconnected! Refreshing game state...");
+
+      // Request current room and game state
+      if (currentRoom) {
+        socket.emit('joinRoom', { roomCode: currentRoom, playerName }, (response) => {
+          if (response.success) {
+            console.log("Rejoined room after reconnection");
+            socket.emit('getGameState', (state) => {
+              if (state) {
+                handleGameStateUpdate(state);
+              }
+            });
+          }
+        });
+      }
     });
 
     // Room events
@@ -327,9 +390,7 @@
     // Override processHumanAction to send actions to the server
     if (window.GAME && window.GAME.engine) {
       window.GAME.engine.processHumanAction = function (action, betAmount = 0) {
-        console.log(
-          `Sending action to server: ${action}, amount: ${betAmount}`
-        );
+        console.log(`Sending action to server: ${action}, amount: ${betAmount}`);
 
         // Map client action to server action format
         let serverAction = {
@@ -349,10 +410,14 @@
         // Send action to server
         socket.emit("gameAction", serverAction);
 
-        // Hide betting controls immediately for better UX
+        // Hide betting controls immediately
         document.getElementById("betting-controls").classList.remove("visible");
 
-        return true;
+        // Adding visual feedback
+        const human = window.GAME.state.players.find(p => p.isHuman);
+        GAME.utils.showPlayerAction(human.id, action, betAmount);
+
+        return true; // Always return true as server will validate
       };
     }
   }
@@ -604,28 +669,72 @@
     }
   }
 
+  function forceUIUpdate() {
+    // Update stacks and bets
+    GAME.utils.updateStacks();
+
+    // Update pot
+    GAME.utils.updatePotDisplay();
+
+    // Render cards
+    if (window.GAME.engine.renderHands) {
+      window.GAME.engine.renderHands();
+    }
+
+    // Update power cards
+    if (window.GAME.engine.renderPowerCards) {
+      window.GAME.engine.renderPowerCards();
+    }
+
+    // Update game stage
+    if (window.GAME.utils.updateGameStage) {
+      window.GAME.utils.updateGameStage(window.GAME.state.currentStage);
+    }
+  }
+
   // Handle player turn event
   function handlePlayerTurn(data) {
     console.log("Player turn:", data);
 
-    // Check if it's this player's turn
-    const isMyTurn = data.playerId === socket.id;
+    try {
+      // Update active player
+      const playerIndex = GAME.state.players.findIndex(p => p.id === data.playerId);
+      if (playerIndex >= 0) {
+        GAME.state.activePlayerIndex = playerIndex;
 
-    // Add to game log
-    if (window.GAME && window.GAME.utils) {
-      window.GAME.utils.addLog(`It's ${data.playerName}'s turn`, "action");
-
-      if (isMyTurn) {
-        window.GAME.utils.showMessage("Your turn - choose your action");
-
-        // Show betting controls for human player
-        document.getElementById("betting-controls").classList.add("visible");
-
-        // Update action buttons
-        if (window.GAME.engine && window.GAME.engine.updateActionButtons) {
-          window.GAME.engine.updateActionButtons();
-        }
+        // Highlight active player
+        GAME.state.players.forEach((player, index) => {
+          const playerEl = document.getElementById(`player-${player.id}`);
+          if (playerEl) {
+            if (index === GAME.state.activePlayerIndex) {
+              playerEl.classList.add("active");
+            } else {
+              playerEl.classList.remove("active");
+            }
+          }
+        });
       }
+
+      // Update game state
+      GAME.state.currentStage = data.stage;
+      GAME.state.currentBet = data.currentBet;
+      GAME.state.pot = data.pot;
+
+      // Safe UI update
+      safeUIUpdate();
+
+      // Show betting controls if it's human's turn
+      if (data.playerId === socket.id) {
+        const bettingControls = document.getElementById("betting-controls");
+        if (bettingControls) {
+          bettingControls.classList.add("visible");
+        }
+
+        // Safely update action buttons
+        safeUpdateActionButtons();
+      }
+    } catch (error) {
+      console.error("Error handling player turn:", error);
     }
   }
 
@@ -707,56 +816,60 @@
   }
 
   // Handle game state update event
+  // Server-state update handler - replace the existing handleGameStateUpdate function
   function handleGameStateUpdate(state) {
     console.log('Game state update received:', state);
-
-    if (window.GAME && window.GAME.state) {
-      // Update GAME.state with the new state
-      // Map remote players to local player slots
-      // Human player is always index 0, others are AI1, AI2, AI3
-
-      // Update player names if provided
-      if (state.playerNames && state.playerNames.length > 0) {
-        updatePlayerNames(state.playerNames);
-      }
-
-      state.players.forEach((remotePlayer, index) => {
-        // Find this player's index in the local game
-        let localIndex = remotePlayer.id === socket.id ? 0 : index;
-        if (localIndex >= window.GAME.state.players.length) {
-          localIndex = index % window.GAME.state.players.length;
+  
+    try {
+      if (!window.GAME || !window.GAME.state) return;
+      
+      // Map player states
+      state.players.forEach((remotePlayer) => {
+        // Find matching player in local state
+        const localPlayer = GAME.state.players.find(p => 
+          p.id === remotePlayer.id || 
+          (remotePlayer.id === socket.id && p.isHuman === true)
+        );
+        
+        if (localPlayer) {
+          // Update player data
+          localPlayer.id = remotePlayer.id;
+          localPlayer.name = remotePlayer.name || localPlayer.name;
+          localPlayer.stack = remotePlayer.stack;
+          localPlayer.bet = remotePlayer.bet;
+          localPlayer.folded = remotePlayer.folded;
+          localPlayer.allIn = remotePlayer.allIn;
+          localPlayer.active = remotePlayer.active;
+          
+          // Update hand if provided
+          if (remotePlayer.hand && remotePlayer.hand.length > 0) {
+            localPlayer.hand = remotePlayer.hand;
+          }
         }
-
-        const localPlayer = window.GAME.state.players[localIndex];
-
-        // Update player information
-        localPlayer.id = remotePlayer.id;
-        // Don't overwrite player names with generic "Player 1" etc.
-        if (remotePlayer.name && !remotePlayer.name.startsWith('Player ')) {
-          localPlayer.name = remotePlayer.name;
-        }
-        localPlayer.hand = remotePlayer.hand;
-        localPlayer.stack = remotePlayer.stack;
-        localPlayer.bet = remotePlayer.bet;
-        localPlayer.folded = remotePlayer.folded;
-        localPlayer.allIn = remotePlayer.allIn;
-        localPlayer.active = remotePlayer.active;
       });
-
+      
       // Update game state
-      window.GAME.state.arenaCard = state.arenaCard;
-      window.GAME.state.powerCards = state.powerCards;
-      window.GAME.state.currentStage = state.currentStage;
-      window.GAME.state.dealerPosition = state.dealerPosition;
-      window.GAME.state.activePlayerIndex = state.activePlayerIndex;
-      window.GAME.state.pot = state.pot;
-      window.GAME.state.currentBet = state.currentBet;
-
-      // Highlight active player
-      highlightActivePlayer(state.activePlayerIndex);
-
-      // Update UI elements
-      updateUI();
+      GAME.state.arenaCard = state.arenaCard;
+      GAME.state.powerCards = state.powerCards || [];
+      GAME.state.currentStage = state.currentStage;
+      GAME.state.dealerPosition = state.dealerPosition;
+      GAME.state.activePlayerIndex = state.activePlayerIndex;
+      GAME.state.pot = state.pot;
+      GAME.state.currentBet = state.currentBet;
+      
+      // Safe UI update
+      safeUIUpdate();
+      
+      // Update positions if provided
+      if (state.playerPositions && state.playerPositions.length > 0) {
+        try {
+          updatePlayerPositions(state.playerPositions);
+        } catch (posError) {
+          console.error("Error updating positions:", posError);
+        }
+      }
+    } catch (error) {
+      console.error("Error handling game state update:", error);
     }
   }
 
@@ -891,14 +1004,69 @@
     }
   }
 
+  function positionBlindButtons() {
+    // Find the dealer, SB, and BB positions
+    const dealerEl = document.querySelector('.player-position.dealer');
+    const sbEl = document.querySelector('.player-position.small-blind');
+    const bbEl = document.querySelector('.player-position.big-blind');
+
+    // Get the button elements
+    const dealerBtn = document.getElementById('dealer-button');
+    const sbBtn = document.getElementById('small-blind-button');
+    const bbBtn = document.getElementById('big-blind-button');
+
+    if (!dealerBtn || !sbBtn || !bbBtn) return;
+
+    // Hide all buttons first
+    dealerBtn.style.display = 'none';
+    sbBtn.style.display = 'none';
+    bbBtn.style.display = 'none';
+
+    // Position dealer button
+    if (dealerEl) {
+      const playerEl = dealerEl.closest('.player');
+      if (playerEl) {
+        const playerId = playerEl.id;
+        dealerBtn.style.display = 'flex';
+
+        // Position based on player location
+        positionButton(dealerBtn, playerId, 'left');
+      }
+    }
+
+    // Position SB button
+    if (sbEl) {
+      const playerEl = sbEl.closest('.player');
+      if (playerEl) {
+        const playerId = playerEl.id;
+        sbBtn.style.display = 'flex';
+
+        // Position based on player location
+        positionButton(sbBtn, playerId, 'right');
+      }
+    }
+
+    // Position BB button
+    if (bbEl) {
+      const playerEl = bbEl.closest('.player');
+      if (playerEl) {
+        const playerId = playerEl.id;
+        bbBtn.style.display = 'flex';
+
+        // Position based on player location
+        positionButton(bbBtn, playerId, 'top');
+      }
+    }
+  }
+
   // Helper function to update player positions
   function updatePlayerPositions(positions) {
     console.log('Updating player positions:', positions);
 
-    // Find current player's position
+    // Find my position data
     const myPosition = positions.find(pos => pos.id === socket.id);
     if (!myPosition) {
-      console.error('Could not find current player in position data');
+      console.error('Current player not found in position data');
       return;
     }
 
@@ -906,31 +1074,30 @@
     const otherPlayers = positions.filter(pos => pos.id !== socket.id);
 
     // Always put the current player at position "human" (bottom)
-    const humanEl = document.querySelector('#player-human .player-position');
+    const humanEl = document.querySelector('#player-human h2');
     if (humanEl) {
-      humanEl.textContent = myPosition.position;
-
-      // Mark as dealer if applicable
-      if (myPosition.isDealer) {
-        humanEl.classList.add('dealer');
-      } else {
-        humanEl.classList.remove('dealer');
-      }
+      humanEl.innerHTML = `You <span class="player-position ${myPosition.isDealer ? 'dealer' : ''} ${myPosition.isSB ? 'small-blind' : ''} ${myPosition.isBB ? 'big-blind' : ''}">${myPosition.position}</span>`;
     }
 
     // Calculate relative positions for other players
-    // In a 4-player game, relative to the human at the bottom:
-    // - Left = (myIndex + 3) % 4
-    // - Top = (myIndex + 2) % 4
-    // - Right = (myIndex + 1) % 4
+    // In a 4-player game with human at the bottom:
+    // - Player to the left = ai3 (left)
+    // - Player across = ai1 (top)
+    // - Player to the right = ai2 (right)
 
-    // Get my table position (0-3)
+    // Get my absolute table position (0-3)
     const myTablePos = myPosition.tablePosition;
 
-    // Map each other player to an AI position
+    // Clear existing player displays first
+    document.querySelectorAll('#player-ai1 h2, #player-ai2 h2, #player-ai3 h2').forEach(el => {
+      // Keep original AI names or use default
+      const aiName = el.textContent.trim().split(' ')[0];
+      el.innerHTML = `${aiName} <span class="player-position">-</span>`;
+    });
+
+    // Map each other player to their visual position
     otherPlayers.forEach(player => {
       // Calculate relative position (0=right, 1=top, 2=left)
-      // This gives us the correct AI slot (ai1, ai2, ai3) for each player
       const relativePos = (player.tablePosition - myTablePos + 4) % 4;
       let aiSlot;
 
@@ -939,7 +1106,7 @@
         case 1: // Right position (clockwise from human)
           aiSlot = 'ai2';
           break;
-        case 2: // Top position
+        case 2: // Top position (across from human)
           aiSlot = 'ai1';
           break;
         case 3: // Left position (counter-clockwise from human)
@@ -950,78 +1117,241 @@
           return;
       }
 
-      // Update the player name and position in the correct AI slot
+      // Update the player position display
       const aiEl = document.querySelector(`#player-${aiSlot} h2`);
-      const posEl = document.querySelector(`#player-${aiSlot} .player-position`);
-
-      if (aiEl && posEl) {
-        // Update name if it's not the default "AI X"
-        if (!aiEl.textContent.includes('AI ')) {
-          aiEl.innerHTML = `${player.name} <span class="player-position">${player.position}</span>`;
-        } else {
-          posEl.textContent = player.position;
-        }
-
-        // Mark as dealer if applicable
-        if (player.isDealer) {
-          posEl.classList.add('dealer');
-        } else {
-          posEl.classList.remove('dealer');
-        }
+      if (aiEl) {
+        aiEl.innerHTML = `${player.name} <span class="player-position ${player.isDealer ? 'dealer' : ''} ${player.isSB ? 'small-blind' : ''} ${player.isBB ? 'big-blind' : ''}">${player.position}</span>`;
       }
-
-      console.log(`Mapped player ${player.name} (${player.position}) to slot ${aiSlot}`);
     });
 
-    // Update dealer button position based on dealer player
-    positionDealerButton();
+    // Position blind buttons
+    positionBlindButtons();
   }
 
-  function positionDealerButton() {
-    // Find the dealer position element
-    const dealerEl = document.querySelector('.player-position.dealer');
-    if (!dealerEl) return;
+  // Helper to position a button next to a player
+  function positionButton(button, playerId, position) {
+    const positions = {
+      'player-human': {
+        left: { left: '100px', top: '66%', right: 'auto', bottom: 'auto' },
+        right: { left: '150px', top: '66%', right: 'auto', bottom: 'auto' },
+        top: { left: '125px', top: '60%', right: 'auto', bottom: 'auto' }
+      },
+      'player-ai1': {
+        left: { left: '45%', top: '75px', right: 'auto', bottom: 'auto' },
+        right: { left: '55%', top: '75px', right: 'auto', bottom: 'auto' },
+        top: { left: '50%', top: '65px', right: 'auto', bottom: 'auto' }
+      },
+      'player-ai2': {
+        left: { right: '125px', top: '60%', left: 'auto', bottom: 'auto' },
+        right: { right: '75px', top: '60%', left: 'auto', bottom: 'auto' },
+        top: { right: '100px', top: '55%', left: 'auto', bottom: 'auto' }
+      },
+      'player-ai3': {
+        left: { left: '45%', bottom: '75px', right: 'auto', top: 'auto' },
+        right: { left: '55%', bottom: '75px', right: 'auto', top: 'auto' },
+        top: { left: '50%', bottom: '65px', right: 'auto', top: 'auto' }
+      }
+    };
 
-    // Show the dealer button
-    const dealerBtn = document.getElementById('dealer-button');
-    if (!dealerBtn) return;
-
-    dealerBtn.style.display = 'flex';
-
-    // Position it based on which player is the dealer
-    const playerEl = dealerEl.closest('.player');
-    if (!playerEl) return;
-
-    const playerId = playerEl.id;
-
-    // Position dealer button based on player location
-    switch (playerId) {
-      case 'player-human': // Bottom
-        dealerBtn.style.left = '40%';
-        dealerBtn.style.top = 'auto';
-        dealerBtn.style.right = 'auto';
-        dealerBtn.style.bottom = '80px';
-        break;
-      case 'player-ai1': // Top
-        dealerBtn.style.left = '50%';
-        dealerBtn.style.top = '80px';
-        dealerBtn.style.right = 'auto';
-        dealerBtn.style.bottom = 'auto';
-        break;
-      case 'player-ai2': // Right
-        dealerBtn.style.left = 'auto';
-        dealerBtn.style.top = '50%';
-        dealerBtn.style.right = '80px';
-        dealerBtn.style.bottom = 'auto';
-        break;
-      case 'player-ai3': // Left
-        dealerBtn.style.left = '80px';
-        dealerBtn.style.top = '50%';
-        dealerBtn.style.right = 'auto';
-        dealerBtn.style.bottom = 'auto';
-        break;
+    const pos = positions[playerId]?.[position];
+    if (pos) {
+      Object.keys(pos).forEach(prop => {
+        button.style[prop] = pos[prop];
+      });
     }
   }
+
+  // Add this function to handle safe UI updates
+  function safeUIUpdate() {
+    try {
+      // Safely update stacks
+      GAME.state.players.forEach((player) => {
+        const stackElement = document.getElementById(`${player.id}-stack`);
+        if (stackElement) {
+          stackElement.innerHTML = `<i class="fas fa-coins stack-icon"></i> $${player.stack}`;
+        }
+
+        const betElement = document.getElementById(`${player.id}-bet-amount`);
+        if (betElement) {
+          if (player.bet > 0) {
+            betElement.textContent = "$" + player.bet;
+            betElement.style.display = "block";
+          } else {
+            betElement.style.display = "none";
+          }
+        }
+
+        // Safe chips rendering
+        const chipsContainer = document.getElementById(`${player.id}-chips`);
+        if (chipsContainer) {
+          chipsContainer.innerHTML = "";
+          if (player.bet > 0) {
+            renderChips(player);
+          }
+        }
+      });
+
+      // Update pot safely
+      const potElement = document.getElementById("pot");
+      if (potElement) {
+        potElement.textContent = "Pot: $" + GAME.state.pot;
+      }
+
+      // Safely render hands if the function exists
+      if (window.GAME.engine && typeof window.GAME.engine.renderHands === "function") {
+        window.GAME.engine.renderHands();
+      }
+
+      // Safely render power cards if the function exists
+      if (window.GAME.engine && typeof window.GAME.engine.renderPowerCards === "function") {
+        window.GAME.engine.renderPowerCards();
+      }
+
+      // Update game stage safely
+      if (window.GAME.utils && typeof window.GAME.utils.updateGameStage === "function") {
+        const stageElement = document.querySelector(".stage-dot.active");
+        if (stageElement) {
+          stageElement.classList.remove("active");
+        }
+
+        const newActiveStage = document.querySelector(`.stage-dot[data-stage="${GAME.state.currentStage}"]`);
+        if (newActiveStage) {
+          newActiveStage.classList.add("active");
+        }
+      }
+    } catch (error) {
+      console.error("Error in safe UI update:", error);
+    }
+  }
+
+  // Add this function to safely update action buttons
+  function safeUpdateActionButtons() {
+    try {
+      const checkButton = document.getElementById("check-button");
+      const callButton = document.getElementById("call-button");
+      const betButton = document.getElementById("bet-button");
+      const raiseButton = document.getElementById("raise-button");
+      const allInButton = document.getElementById("all-in-button");
+
+      if (!checkButton || !callButton || !betButton || !raiseButton || !allInButton) {
+        console.error("Action buttons not found");
+        return;
+      }
+
+      // Find human player
+      const humanPlayer = GAME.state.players.find(p => p.id === socket.id);
+      if (!humanPlayer) {
+        console.error("Human player not found in game state");
+        return;
+      }
+
+      // Reset all buttons
+      checkButton.disabled = false;
+      callButton.disabled = false;
+      betButton.disabled = false;
+      raiseButton.disabled = false;
+      allInButton.disabled = false;
+
+      // Handle all-in case
+      if (humanPlayer.stack === 0) {
+        checkButton.disabled = true;
+        callButton.disabled = true;
+        betButton.disabled = true;
+        raiseButton.disabled = true;
+        allInButton.disabled = true;
+        return;
+      }
+
+      // If there's a bet
+      if (GAME.state.currentBet > humanPlayer.bet) {
+        checkButton.disabled = true;
+
+        // Calculate call amount
+        const callAmount = GAME.state.currentBet - humanPlayer.bet;
+
+        // If human doesn't have enough to call
+        if (humanPlayer.stack < callAmount) {
+          callButton.disabled = true;
+        }
+
+        // Enable/disable Raise based on stack size
+        if (humanPlayer.stack <= callAmount || humanPlayer.stack < GAME.BIG_BLIND) {
+          raiseButton.disabled = true;
+        }
+
+        // Show Raise instead of Bet when there's already a bet
+        betButton.style.display = "none";
+        raiseButton.style.display = "inline-block";
+
+        // Update call button text
+        callButton.textContent = `Call $${callAmount}`;
+      } else {
+        // No bet or player has already matched the current bet
+        checkButton.disabled = false;
+        callButton.disabled = true;
+
+        // Show Bet instead of Raise when there's no bet
+        betButton.style.display = "inline-block";
+        raiseButton.style.display = "none";
+
+        // Reset call button text
+        callButton.textContent = "Call";
+      }
+
+      // If human can't bet the minimum, disable bet button
+      if (humanPlayer.stack < GAME.BIG_BLIND) {
+        betButton.disabled = true;
+      }
+    } catch (error) {
+      console.error("Error updating action buttons:", error);
+    }
+  }
+
+  // function positionDealerButton() {
+  //   // Find the dealer position element
+  //   const dealerEl = document.querySelector('.player-position.dealer');
+  //   if (!dealerEl) return;
+
+  //   // Show the dealer button
+  //   const dealerBtn = document.getElementById('dealer-button');
+  //   if (!dealerBtn) return;
+
+  //   dealerBtn.style.display = 'flex';
+
+  //   // Position it based on which player is the dealer
+  //   const playerEl = dealerEl.closest('.player');
+  //   if (!playerEl) return;
+
+  //   const playerId = playerEl.id;
+
+  //   // Position dealer button based on player location
+  //   switch (playerId) {
+  //     case 'player-human': // Bottom
+  //       dealerBtn.style.left = '40%';
+  //       dealerBtn.style.top = 'auto';
+  //       dealerBtn.style.right = 'auto';
+  //       dealerBtn.style.bottom = '80px';
+  //       break;
+  //     case 'player-ai1': // Top
+  //       dealerBtn.style.left = '50%';
+  //       dealerBtn.style.top = '80px';
+  //       dealerBtn.style.right = 'auto';
+  //       dealerBtn.style.bottom = 'auto';
+  //       break;
+  //     case 'player-ai2': // Right
+  //       dealerBtn.style.left = 'auto';
+  //       dealerBtn.style.top = '50%';
+  //       dealerBtn.style.right = '80px';
+  //       dealerBtn.style.bottom = 'auto';
+  //       break;
+  //     case 'player-ai3': // Left
+  //       dealerBtn.style.left = '80px';
+  //       dealerBtn.style.top = '50%';
+  //       dealerBtn.style.right = 'auto';
+  //       dealerBtn.style.bottom = 'auto';
+  //       break;
+  //   }
+  // }
 
   // Helper function to toggle the multiplayer overlay
   function toggleMultiplayerOverlay(show) {
