@@ -392,6 +392,15 @@ function isBettingRoundComplete() {
     (p) => p.bet === GAME.state.currentBet || p.allIn
   );
 
+  const allInShortAmount = GAME.state.players.some(p => 
+    !p.folded && p.allIn && p.bet < GAME.state.currentBet
+  );
+  
+  // If someone is all-in for less than current bet, other players still need to finish the round
+  if (allInShortAmount) {
+    return allActed;
+  }
+
   console.log(
     `All active players acted: ${allActed}, All matched bet: ${allMatchedOrAllIn}`
   );
@@ -1635,6 +1644,13 @@ function showdown(singleWinner = false) {
 
   // Show overlay
   winnerOverlay.classList.add("visible");
+
+  GAME.state.players.forEach(player => {
+    if (player.stack === 0) {
+      player.stack = 500;
+      GAME.utils.addLog(`${player.name} rebought with $500`, "action");
+    }
+  });
 
   // Update stacks
   GAME.utils.updateStacks();
