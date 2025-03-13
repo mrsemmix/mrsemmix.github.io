@@ -1,0 +1,46 @@
+flowchart TB
+    subgraph Client
+        UI[UI Components]
+        UIController[UI Controller]
+        GameManager[Game Manager]
+        
+        subgraph Modes
+            OnlineMode[Online Mode Handler]
+            OfflineMode[Offline Mode Handler]
+            AIPlayers[AI Player Logic]
+        end
+        
+        subgraph Network
+            SocketClient[Socket.io Client]
+        end
+        
+        UI --> UIController
+        UIController --> GameManager
+        GameManager --> OnlineMode
+        GameManager --> OfflineMode
+        OfflineMode --> AIPlayers
+        OnlineMode --> SocketClient
+    end
+    
+    subgraph Server
+        SocketServer[Socket.io Server]
+        RoomManager[Room Manager]
+        GameLogic[Game Logic]
+        
+        subgraph GameStates
+            Preflop[Preflop]
+            Arena[Arena]
+            PowerCards[Power Cards]
+            Showdown[Showdown]
+        end
+        
+        GameLogic --> Preflop
+        GameLogic --> Arena
+        GameLogic --> PowerCards
+        GameLogic --> Showdown
+        
+        SocketServer --> RoomManager
+        RoomManager --> GameLogic
+    end
+    
+    SocketClient <--> SocketServer

@@ -6,7 +6,6 @@
 console.log("Debug pokermon-core.js loading...");
 
 // Global Constants
-// const ELEMENTS = ["Fire", "Water", "Earth", "Air", "Electric"];
 const ELEMENTS = ["Fire", "Water", "Earth", "Air"];
 const POSITIONS = ["BTN", "SB", "BB", "UTG", "MP", "CO"]; // Button, Small Blind, Big Blind, Under the Gun, Middle Position, Cut Off
 const STARTING_STACK = 1000;
@@ -75,21 +74,6 @@ const MONSTER_NAMES = {
     "Sky Lord",
     "Storm King",
   ],
-  // Electric: [
-  //   "Spark Imp",
-  //   "Voltage Sprite",
-  //   "Shockling",
-  //   "Static Whelp",
-  //   "Electric Hound",
-  //   "Volt Golem",
-  //   "Current Serpent",
-  //   "Lightning Beast",
-  //   "Thunder Fiend",
-  //   "Storm Brute",
-  //   "Electric Lord",
-  //   "Volt Emperor",
-  //   "Thunder Emperor",
-  // ],
 };
 
 const ARENA_NAMES = {
@@ -97,7 +81,6 @@ const ARENA_NAMES = {
   Water: ["Wave Pavilion", "Grand Ocean", "River Basin"],
   Earth: ["Rock Fortress", "Stone Domain", "Terra Grounds"],
   Air: ["Skyport", "Wind Haven", "Cloud Oasis"],
-  // Electric: ["Spark Stade", "Giga Factory", "Lightning Cage"],
 };
 
 const POWER_NAMES = {
@@ -129,24 +112,7 @@ const POWER_NAMES = {
     4: "Tempest",
     5: "Hurricane",
   },
-  // Electric: {
-  //   1: "Spark",
-  //   2: "Jolt",
-  //   3: "Volt Surge",
-  //   4: "Lightning Bolt",
-  //   5: "Thunder"
-  // }
 };
-
-// BONUS MATRIX: Updated with complementary element loop
-// water -> fire -> air -> earth -> electric -> water
-// const BONUS_MATRIX = {
-//   Fire: { Fire: 4, Water: -4, Earth: 1, Air: 2, Electric: -3 },
-//   Water: { Water: 4, Fire: 2, Earth: 1, Air: -4, Electric: -3 },
-//   Earth: { Earth: 4, Water: 2, Fire: -3, Air: -4, Electric: 1 },
-//   Air: { Air: 4, Water: 2, Earth: -3, Fire: -4, Electric: 1 },
-//   Electric: { Electric: 4, Water: 2, Earth: -4, Air: 1, Fire: -3 },
-// };
 
 const ARENA_BONUS_MATRIX = {
   Fire: { Fire: 4, Water: -4, Earth: -2, Air: 2 },
@@ -163,8 +129,6 @@ const ELEMENT_GRADIENTS = {
   Earth:
     "linear-gradient(45deg, rgba(154,205,50,0.2), rgba(107,142,35,0.2), rgba(154,205,50,0.2))",
   Air: "linear-gradient(45deg, rgba(173,216,230,0.2), rgba(135,206,250,0.2), rgba(173,216,230,0.2))",
-  // Electric:
-  //   "linear-gradient(45deg, rgba(255,215,0,0.2), rgba(255,165,0,0.2), rgba(255,215,0,0.2))",
 };
 
 const GAME_STAGES = ["preflop", "arena", "power1", "power2", "power3"];
@@ -221,63 +185,16 @@ window.GAME = {
 
 console.log("Debug GAME object initialized:", window.GAME);
 
-// // Create a dummy initGame function in case the engine.js file fails to load
-// function emergencyInitGame() {
-//   console.log("EMERGENCY initGame function called!");
-//   alert("Starting game with emergency initialization function!");
+// Add mode state
+window.GAME.currentMode = 'offline'; // 'offline' or 'online'
 
-//   // Do a basic initialization here
-//   GameState.deck = [];
-//   GameState.players = [
-//     {
-//       id: "human",
-//       name: "You",
-//       hand: [],
-//       isHuman: true,
-//       active: true,
-//       bet: 0,
-//       totalBet: 0,
-//       stack: STARTING_STACK,
-//       folded: false,
-//       allIn: false,
-//     },
-//     {
-//       id: "ai1",
-//       name: "AI 1",
-//       hand: [],
-//       isHuman: false,
-//       active: true,
-//       bet: 0,
-//       totalBet: 0,
-//       stack: STARTING_STACK,
-//       folded: false,
-//       allIn: false,
-//     },
-//     {
-//       id: "ai2",
-//       name: "AI 2",
-//       hand: [],
-//       isHuman: false,
-//       active: true,
-//       bet: 0,
-//       totalBet: 0,
-//       stack: STARTING_STACK,
-//       folded: false,
-//       allIn: false,
-//     },
-//     {
-//       id: "ai3",
-//       name: "AI 3",
-//       hand: [],
-//       isHuman: false,
-//       active: true,
-//       bet: 0,
-//       totalBet: 0,
-//       stack: STARTING_STACK,
-//       folded: false,
-//       allIn: false,
-//     },
-//   ];
+// Add a function to switch modes
+window.GAME.switchMode = function(mode) {
+  window.GAME.currentMode = mode;
+  console.log('Switched to ' + mode + ' mode');
+};
 
-//   document.getElementById("start-button").style.display = "none";
-// }
+// Export in Node.js environment (for server reuse)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = window.GAME;
+}

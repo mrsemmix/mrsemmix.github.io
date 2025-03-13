@@ -32,6 +32,90 @@
 
     // Set up all event handlers
     setupEventListeners();
+    // Call these in your initializeGame function
+    addMultiplayerUI();
+    addMultiplayerStyles();
+  }
+
+  function addMultiplayerUI() {
+    // Check if it already exists
+    if (document.querySelector('.multiplayer-ui')) return;
+
+    // Create the multiplayer UI
+    const multiplayerUI = document.createElement('div');
+    multiplayerUI.className = 'multiplayer-ui';
+    multiplayerUI.innerHTML = `
+      <div class="multiplayer-overlay">
+        <h2>PokerMon Multiplayer</h2>
+        
+        <!-- Player name input -->
+        <div class="input-group">
+          <label for="player-name">Your Name:</label>
+          <input type="text" id="player-name" placeholder="Enter your name" maxlength="15">
+        </div>
+        
+        <!-- Create or join room -->
+        <div class="button-group">
+          <button id="create-room-btn" class="button">Create Room</button>
+          <button id="join-room-btn" class="button">Join Room</button>
+          <button id="refresh-rooms-btn" class="button">Refresh Rooms</button>
+        </div>
+        
+        <!-- Room code input for joining -->
+        <div class="join-room-container">
+          <div class="input-group">
+            <label for="room-code-input">Room Code:</label>
+            <input type="text" id="room-code-input" placeholder="Enter room code" maxlength="6">
+          </div>
+          <button id="join-with-code-btn" class="button">Join</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(multiplayerUI);
+
+    // Add event listeners
+    document.getElementById('create-room-btn').addEventListener('click', () => {
+      const name = document.getElementById('player-name').value || 'Player_' + Math.floor(Math.random() * 1000);
+      window.ModeController.createRoom(name);
+    });
+
+    document.getElementById('join-with-code-btn').addEventListener('click', () => {
+      const code = document.getElementById('room-code-input').value;
+      const name = document.getElementById('player-name').value || 'Player_' + Math.floor(Math.random() * 1000);
+      if (code) {
+        window.ModeController.joinRoom(code, name);
+      }
+    });
+  }
+
+  function addMultiplayerStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+      .multiplayer-ui {
+        font-family: "Exo 2", sans-serif;
+      }
+      
+      .multiplayer-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(10, 15, 30, 0.95);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        color: #e0e0e0;
+        overflow-y: auto;
+      }
+      
+      /* Add more styles here */
+    `;
+
+    document.head.appendChild(style);
   }
 
   /**

@@ -19,6 +19,8 @@ function initLoader() {
   const scripts = [
     "pokermon-core.js",    // Load this for constants and state structure
     "pokermon-utils.js",   // Load this for utility functions
+    "ai-player.js",
+    "mode-bridge.js"
     // "pokermon-engine.js", // Don't load this - contains game logic
     // "pokermon-main.js",   // Don't load this - contains game initialization
   ];

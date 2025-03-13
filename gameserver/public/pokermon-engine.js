@@ -123,6 +123,14 @@ function initGame() {
   setTimeout(dealInitialCards, 500);
 }
 
+
+const originalFunctions = {
+  initGame: initGame,
+  processHumanAction: processHumanAction,
+  moveToNextPlayer: moveToNextPlayer,
+  advanceGame: advanceGame,
+};
+
 // Helper function to clear all cards
 function clearAllCards() {
   GAME.state.players.forEach((player) => {
@@ -270,10 +278,9 @@ function dealInitialCards() {
             <div class="card-type">${iconHTML} ${card.element}</div>
             <div class="card-name">${card.name}</div>
             <div class="card-value">${card.value}</div>
-            <div class="bonus-indicator">${
-              GAME.utils.calculateCardValue(card) - card.value >= 0
-                ? "+" + (GAME.utils.calculateCardValue(card) - card.value)
-                : GAME.utils.calculateCardValue(card) - card.value
+            <div class="bonus-indicator">${GAME.utils.calculateCardValue(card) - card.value >= 0
+              ? "+" + (GAME.utils.calculateCardValue(card) - card.value)
+              : GAME.utils.calculateCardValue(card) - card.value
             }</div>
           `;
           container.appendChild(cardDiv);
@@ -889,12 +896,12 @@ function handleCheck(player) {
   // 1. No current bet on the table
   // 2. Player has already matched the current bet
   // 3. Special case: Big Blind in preflop when no one has raised yet
-  const isBigBlind = 
+  const isBigBlind =
     GAME.state.currentStage === "preflop" &&
     document.querySelector(`#player-${player.id} .player-position`).textContent === "BB";
-  
-  const canCheck = 
-    GAME.state.currentBet === 0 || 
+
+  const canCheck =
+    GAME.state.currentBet === 0 ||
     player.bet === GAME.state.currentBet ||
     (isBigBlind && player.bet === GAME.state.currentBet && !GAME.state.lastRaiser);
 
@@ -946,7 +953,7 @@ function handleCall(player) {
     GAME.utils.addLog("You called $" + callAmount + ".", "action");
     GAME.utils.showPlayerAction(player.id, "Call", callAmount);
   }
-  
+
   return true;
 }
 
@@ -977,14 +984,14 @@ function handleBet(player, betAmount) {
   player.bet = betAmount;
   player.totalBet += betAmount;
   GAME.state.currentBet = betAmount;
-  
+
   // The minimum raise is now the size of this bet
   GAME.state.minRaise = betAmount;
   GAME.state.lastRaiser = player;
 
   GAME.utils.addLog(`You bet $${betAmount}.`, "bet");
   GAME.utils.showPlayerAction(player.id, "Bet", betAmount);
-  
+
   return true;
 }
 
@@ -1002,7 +1009,7 @@ function handleRaise(player, betAmount) {
   const raiseSize = betAmount - GAME.state.currentBet;
   const callAmount = GAME.state.currentBet - player.bet;
   const totalRequired = callAmount + raiseSize;
-  
+
   // Validate raise amount - must be at least the minimum raise
   if (betAmount <= GAME.state.currentBet) {
     alert(
@@ -1010,7 +1017,7 @@ function handleRaise(player, betAmount) {
     );
     return false;
   }
-  
+
   if (raiseSize < GAME.state.minRaise) {
     alert(
       `Your raise must be at least $${GAME.state.minRaise} more than the current bet.`
@@ -1035,7 +1042,7 @@ function handleRaise(player, betAmount) {
 
   GAME.utils.addLog(`You raised to $${betAmount}.`, "bet");
   GAME.utils.showPlayerAction(player.id, "Raise", betAmount);
-  
+
   return true;
 }
 
@@ -1066,7 +1073,7 @@ function handleFold(player) {
       advanceGame();
     }, 1000);
   }
-  
+
   return true;
 }
 
@@ -1094,7 +1101,7 @@ function handleAllIn(player) {
   } else {
     // All-in as a raise
     const raiseAmount = allInAmount - GAME.state.currentBet;
-    
+
     // Check if this all-in constitutes a "real raise" (meets min raise requirement)
     // If it's a real raise, it reopens betting
     if (raiseAmount >= GAME.state.minRaise) {
@@ -1113,7 +1120,7 @@ function handleAllIn(player) {
     GAME.utils.addLog(`You went all-in with $${allInAmount}!`, "bet");
     GAME.utils.showPlayerAction(player.id, "All-In", allInAmount);
   }
-  
+
   const raiseAmount = allInAmount - GAME.state.currentBet;
   const human = GAME.state.players.find((p) => p.isHuman);
   // Check if this all-in constitutes a "real raise" (meets min raise requirement)
@@ -1125,167 +1132,191 @@ function handleAllIn(player) {
   return true;
 }
 
-// Process AI Actions
 function processAIActions() {
-  if (
-    !GAME.state.players[GAME.state.activePlayerIndex] ||
-    GAME.state.players[GAME.state.activePlayerIndex].isHuman
-  ) {
+  if (!GAME.state.players[GAME.state.activePlayerIndex] ||
+    GAME.state.players[GAME.state.activePlayerIndex].isHuman) {
     return;
   }
 
   const ai = GAME.state.players[GAME.state.activePlayerIndex];
 
-  if (ai.folded || ai.allIn) {
-    // Skip if AI folded or is all-in
-    moveToNextPlayer();
-    return;
-  }
-
-  // Highlight active AI
-  highlightActivePlayer();
-
-  // Improved AI logic with better decision making
-  setTimeout(() => {
-    // Calculate hand value
-    const handValue = ai.hand.reduce(
-      (sum, card) => sum + GAME.utils.calculateCardValue(card),
-      0
-    );
-
-    // Calculate hand strength tier based on game stage
-    const handTier = GAME.utils.calculateHandTier(handValue);
-
-    // Get a count of active players (not folded)
-    const activePlayers = GAME.state.players.filter((p) => !p.folded).length;
-
-    // Special case for Big Blind in preflop
-    const isBigBlind =
-      GAME.state.currentStage === "preflop" &&
-      document.querySelector(`#player-${ai.id} .player-position`)
-        .textContent === "BB";
-
-    // Track if any AI has already raised in this round to reduce re-raising
-    const aiRaiseCount = GAME.state.players.filter(
-      (p) => !p.isHuman && !p.folded && p.bet > 0 && p === GAME.state.lastRaiser
-    ).length;
-
-    // Add this logic to reduce the chance that AIs keep raising each other
-    const shouldLimitRaises = aiRaiseCount >= 1;
-
-    // If there's no bet, or BB with option to check
-    if (
-      GAME.state.currentBet === 0 ||
-      (isBigBlind && ai.bet === GAME.state.currentBet && !GAME.state.lastRaiser)
-    ) {
-      // Premium hands always bet
-      if (handTier === "premium") {
-        // Round to integer and use Big Blind as minimum
-        const betSize = Math.min(
-          Math.max(Math.floor(GAME.state.pot * 0.6), GAME.BIG_BLIND),
-          ai.stack
-        );
-        makeBet(ai, betSize);
-      }
-      // Strong hands bet with 70% probability
-      else if (handTier === "strong" && Math.random() < 0.7) {
-        // Round to integer and use Big Blind as minimum
-        const betSize = Math.min(
-          Math.max(Math.floor(GAME.state.pot * 0.4), GAME.BIG_BLIND),
-          ai.stack
-        );
-        makeBet(ai, betSize);
-      }
-      // Average hands in late position bet with 40% probability
-      else if (
-        handTier === "average" &&
-        GAME.utils.getPlayerPosition(ai) === "late" &&
-        Math.random() < 0.4
-      ) {
-        // Round to integer and use Big Blind as minimum
-        const betSize = Math.min(
-          Math.max(Math.floor(GAME.state.pot * 0.25), GAME.BIG_BLIND),
-          ai.stack
-        );
-        makeBet(ai, betSize);
-      }
-      // Otherwise check
-      else {
-        makeCheck(ai);
-      }
+  // Use AI Player if available, otherwise fall back
+  if (window.AIPlayer) {
+    // Create AI player if not exists (lazy initialization)
+    if (!window.aiPlayers) window.aiPlayers = {};
+    if (!window.aiPlayers[ai.id]) {
+      window.aiPlayers[ai.id] = new AIPlayer(ai.id, ai.name, GAME);
     }
-    // There's already a bet
-    else {
-      // Calculate correct call amount
-      const callAmount = GAME.state.currentBet - ai.bet;
 
-      // Premium hands might raise, but not if there have been too many raises already
+    // Get the AI decision
+    const aiPlayer = window.aiPlayers[ai.id];
+    const decision = aiPlayer.makeDecision();
+
+    // Process the decision
+    switch (decision.type) {
+      case 'check': makeCheck(ai); break;
+      case 'call': makeCall(ai); break;
+      case 'bet': makeBet(ai, decision.amount); break;
+      case 'raise': makeRaise(ai, decision.amount); break;
+      case 'fold': makeFold(ai); break;
+      case 'allIn': makeAllIn(ai); break;
+      default: makeCheck(ai); // Fallback
+    }
+  } else {
+    // Fallback to original logic
+    if (ai.folded || ai.allIn) {
+      // Skip if AI folded or is all-in
+      moveToNextPlayer();
+      return;
+    }
+    
+    const handValue = ai.hand.reduce((sum, card) => sum + calculateCardValue(card), 0);
+    
+    // Highlight active AI
+    highlightActivePlayer();
+
+    // Improved AI logic with better decision making
+    setTimeout(() => {
+      // Calculate hand value
+      const handValue = ai.hand.reduce(
+        (sum, card) => sum + GAME.utils.calculateCardValue(card),
+        0
+      );
+
+      // Calculate hand strength tier based on game stage
+      const handTier = GAME.utils.calculateHandTier(handValue);
+
+      // Get a count of active players (not folded)
+      const activePlayers = GAME.state.players.filter((p) => !p.folded).length;
+
+      // Special case for Big Blind in preflop
+      const isBigBlind =
+        GAME.state.currentStage === "preflop" &&
+        document.querySelector(`#player-${ai.id} .player-position`)
+          .textContent === "BB";
+
+      // Track if any AI has already raised in this round to reduce re-raising
+      const aiRaiseCount = GAME.state.players.filter(
+        (p) => !p.isHuman && !p.folded && p.bet > 0 && p === GAME.state.lastRaiser
+      ).length;
+
+      // Add this logic to reduce the chance that AIs keep raising each other
+      const shouldLimitRaises = aiRaiseCount >= 1;
+
+      // If there's no bet, or BB with option to check
       if (
-        handTier === "premium" &&
-        (!shouldLimitRaises || Math.random() < 0.2)
+        GAME.state.currentBet === 0 ||
+        (isBigBlind && ai.bet === GAME.state.currentBet && !GAME.state.lastRaiser)
       ) {
-        if (ai.stack > callAmount * 2) {
-          // Have enough to raise
-          const raiseSize = Math.min(
-            Math.floor(GAME.state.currentBet * 1.5),
-            ai.stack + ai.bet
+        // Premium hands always bet
+        if (handTier === "premium") {
+          // Round to integer and use Big Blind as minimum
+          const betSize = Math.min(
+            Math.max(Math.floor(GAME.state.pot * 0.6), GAME.BIG_BLIND),
+            ai.stack
           );
-          makeRaise(ai, raiseSize);
-        } else {
-          // Not enough to raise, call
-          makeCall(ai);
+          makeBet(ai, betSize);
+        }
+        // Strong hands bet with 70% probability
+        else if (handTier === "strong" && Math.random() < 0.7) {
+          // Round to integer and use Big Blind as minimum
+          const betSize = Math.min(
+            Math.max(Math.floor(GAME.state.pot * 0.4), GAME.BIG_BLIND),
+            ai.stack
+          );
+          makeBet(ai, betSize);
+        }
+        // Average hands in late position bet with 40% probability
+        else if (
+          handTier === "average" &&
+          GAME.utils.getPlayerPosition(ai) === "late" &&
+          Math.random() < 0.4
+        ) {
+          // Round to integer and use Big Blind as minimum
+          const betSize = Math.min(
+            Math.max(Math.floor(GAME.state.pot * 0.25), GAME.BIG_BLIND),
+            ai.stack
+          );
+          makeBet(ai, betSize);
+        }
+        // Otherwise check
+        else {
+          makeCheck(ai);
         }
       }
-      // Strong hands call and sometimes raise (but with low probability if raises are limited)
-      else if (handTier === "strong") {
-        const raiseProb = shouldLimitRaises ? 0.15 : 0.3;
-
-        if (Math.random() < raiseProb && ai.stack > callAmount * 2) {
-          const raiseSize = Math.min(
-            Math.floor(GAME.state.currentBet * 1.3),
-            ai.stack + ai.bet
-          );
-          makeRaise(ai, raiseSize);
-        } else {
-          makeCall(ai);
-        }
-      }
-      // Average hands call small bets
-      else if (handTier === "average" && callAmount <= ai.stack * 0.3) {
-        makeCall(ai);
-      }
-      // Weak hands call very small bets
-      else if (handTier === "weak" && callAmount <= ai.stack * 0.15) {
-        makeCall(ai);
-      }
-      // Occasionally bluff, but very rarely if raises are limited
-      else if (
-        Math.random() < (shouldLimitRaises ? 0.05 : 0.15) &&
-        GAME.utils.getPlayerPosition(ai) === "late" &&
-        GAME.state.currentStage === "preflop"
-      ) {
-        if (ai.stack > callAmount * 2) {
-          const raiseSize = Math.min(
-            Math.floor(GAME.state.currentBet * 1.2),
-            ai.stack + ai.bet
-          );
-          makeRaise(ai, raiseSize);
-        } else {
-          makeCall(ai);
-        }
-      }
-      // Otherwise fold
+      // There's already a bet
       else {
-        makeFold(ai);
+        // Calculate correct call amount
+        const callAmount = GAME.state.currentBet - ai.bet;
+
+        // Premium hands might raise, but not if there have been too many raises already
+        if (
+          handTier === "premium" &&
+          (!shouldLimitRaises || Math.random() < 0.2)
+        ) {
+          if (ai.stack > callAmount * 2) {
+            // Have enough to raise
+            const raiseSize = Math.min(
+              Math.floor(GAME.state.currentBet * 1.5),
+              ai.stack + ai.bet
+            );
+            makeRaise(ai, raiseSize);
+          } else {
+            // Not enough to raise, call
+            makeCall(ai);
+          }
+        }
+        // Strong hands call and sometimes raise (but with low probability if raises are limited)
+        else if (handTier === "strong") {
+          const raiseProb = shouldLimitRaises ? 0.15 : 0.3;
+
+          if (Math.random() < raiseProb && ai.stack > callAmount * 2) {
+            const raiseSize = Math.min(
+              Math.floor(GAME.state.currentBet * 1.3),
+              ai.stack + ai.bet
+            );
+            makeRaise(ai, raiseSize);
+          } else {
+            makeCall(ai);
+          }
+        }
+        // Average hands call small bets
+        else if (handTier === "average" && callAmount <= ai.stack * 0.3) {
+          makeCall(ai);
+        }
+        // Weak hands call very small bets
+        else if (handTier === "weak" && callAmount <= ai.stack * 0.15) {
+          makeCall(ai);
+        }
+        // Occasionally bluff, but very rarely if raises are limited
+        else if (
+          Math.random() < (shouldLimitRaises ? 0.05 : 0.15) &&
+          GAME.utils.getPlayerPosition(ai) === "late" &&
+          GAME.state.currentStage === "preflop"
+        ) {
+          if (ai.stack > callAmount * 2) {
+            const raiseSize = Math.min(
+              Math.floor(GAME.state.currentBet * 1.2),
+              ai.stack + ai.bet
+            );
+            makeRaise(ai, raiseSize);
+          } else {
+            makeCall(ai);
+          }
+        }
+        // Otherwise fold
+        else {
+          makeFold(ai);
+        }
       }
-    }
-  }, 800);
+    }, 800);
+  }
 }
 
 function processAIRaise(aiPlayer, newBetAmount) {
   // Reset player actions after the AI raises
   resetPlayerActionsAfterRaise(aiPlayer);
-  
+
   // Your existing code to show the action...
   GAME.utils.addLog(`${aiPlayer.name} raised to $${newBetAmount}.`, "bet");
   GAME.utils.showPlayerAction(aiPlayer.id, "Raise", newBetAmount);
@@ -1295,11 +1326,11 @@ function processAIAllIn(aiPlayer, allInAmount) {
   // Only reset action tracking if it's a legitimate raise
   const isRaise = allInAmount > GAME.state.currentBet;
   const raiseAmount = allInAmount - GAME.state.currentBet;
-  
+
   if (isRaise && raiseAmount >= GAME.state.minRaise) {
     resetPlayerActionsAfterRaise(aiPlayer);
   }
-  
+
   // Your existing code to show the action...
   GAME.utils.addLog(`${aiPlayer.name} went all-in with $${allInAmount}!`, "bet");
   GAME.utils.showPlayerAction(aiPlayer.id, "All-In", allInAmount);
@@ -1499,9 +1530,8 @@ function renderHands() {
             <div class="card-type">${iconHTML} ${card.element}</div>
             <div class="card-name">${card.name}</div>
             <div class="card-value">${card.value}</div>
-            <div class="bonus-indicator ${bonusClass}">${
-          bonus >= 0 ? "+" + bonus : bonus
-        }</div>
+            <div class="bonus-indicator ${bonusClass}">${bonus >= 0 ? "+" + bonus : bonus
+          }</div>
           `;
       } else {
         // Show card backs for AI players
@@ -1623,9 +1653,8 @@ function showdown(singleWinner = false) {
         <div class="card-type">${iconHTML} ${card.element}</div>
         <div class="card-name">${card.name}</div>
         <div class="card-value">${card.value}</div>
-        <div class="bonus-indicator ${bonusClass}">${
-      bonus >= 0 ? "+" + bonus : bonus
-    }</div>
+        <div class="bonus-indicator ${bonusClass}">${bonus >= 0 ? "+" + bonus : bonus
+      }</div>
       `;
 
     winnerCards.appendChild(cardDiv);
